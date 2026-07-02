@@ -127,10 +127,19 @@ def run_automation():
                         raise Exception("❌ 超时：验证码未在 180 秒内通过。")
                 
                 # 5. 续费
+                print("验证已通过，强制等待服务器校验...")
+                time.sleep(5) 
+                
                 print("执行续费...")
                 handle_popups_and_ads(page)
                 page.wait_for_selector("#renew-button", state="visible", timeout=30000)
-                page.locator("#renew-button").click(force=True)
+                
+                # 增加点击前的最后一次检查
+                if page.locator("#renew-button").is_enabled():
+                    page.locator("#renew-button").click(force=True)
+                else:
+                    print("警告：Renew 按钮不可点击，尝试强制点击...")
+                    page.locator("#renew-button").click(force=True)
 
                 time.sleep(5)
                 page.screenshot(path="final.png", full_page=True)
