@@ -41,55 +41,67 @@ def run_automation():
                 print("访问 Info 页面...")
                 page.goto("https://eternalzero.cloud/servers/5541/info")
                 time.sleep(5)
-
-                # 3. 强制页面刷新一次，有时能触发插件重新挂载到 DOM
                 page.reload()
                 time.sleep(3)
 
-                # 4. 清理广告
+                # 3. 清理广告 (不拦截网络请求，仅隐藏元素，绕过反广告插件检测)
                 page.evaluate("""() => {
-                    const selectors = ['button.fc-cta-consent', 'button.fc-rewarded-ad-button', '#dismiss-button-element', 'ins.adsbygoogle', 'iframe[src*="ads"]', '.modal-backdrop'];
+                    const guard = document.getElementById('panel-guard-layer');
+                    if(guard) { guard.style.display = 'none'; guard.style.visibility = 'hidden'; }
+
+                    const selectors = [
+                        'iframe[src*="googleads"]', 'iframe[src*="ads"]', 'iframe[src*="doubleclick"]',
+                        '.adsbygoogle', '#dismiss-button-element', 'button.fc-cta-consent', '.modal-backdrop'
+                    ];
                     selectors.forEach(sel => {
-                        document.querySelectorAll(sel).forEach(el => { if(el.offsetParent !== null) el.click(); });
+                        document.querySelectorAll(sel).forEach(el => {
+                            el.style.setProperty('display', 'none', 'important');
+                            el.style.setProperty('pointer-events', 'none', 'important');
+                        });
                     });
                 }""")
                 
-                # 5. 人机验证检测与处理
+                # 4. 人机验证检测与处理
                 if page.locator("iframe[src*='hcaptcha']").count() > 0:
-                    print("检测到 hCaptcha 容器...")
+                    print("检测到 hCaptcha 容器，准备激活插件...")
+                    
+                    # 尝试强制点击验证框，触发插件拦截
+                    try:
+                        captcha_frame = page.frame_locator("iframe[src*='hcaptcha']")
+                        captcha_frame.locator("#checkbox").click(force=True, timeout=5000)
+                    except: print("手动触发交互失败，等待插件自动识别...")
+
                     print("开始实时监控验证过程...")
                     verified = False
                     
-                    # 循环检测 (最多 180 秒)
+                    # 轮询检测 (最多 180 秒)
                     for i in range(36): 
                         time.sleep(5) 
                         
                         try:
-                            # 方式一：检测打勾状态 (aria-checked)
+                            # 判定逻辑：检测 aria-checked 或 Response 注入
                             captcha_frame = page.frame_locator("iframe[src*='hcaptcha']")
                             is_checked = captcha_frame.locator("#checkbox, .checkbox-checked").get_attribute("aria-checked") == "true"
                             
-                            # 方式二：检测 Response 注入
                             response = page.evaluate("document.querySelector('[name=h-captcha-response]')?.value")
                             has_response = response and len(response) > 10
                             
                             if is_checked or has_response:
-                                print("✅ 检测到验证已通过，立即执行续费！")
+                                print("✅ 验证已通过，立即执行续费！")
                                 verified = True
                                 break
-                        except Exception:
-                            pass
+                        except: pass
 
-                        # 状态监控截图
+                        # 截图监控
                         if i % 2 == 0:
                             screenshot_name = f"monitor_{i}.png"
                             page.screenshot(path=screenshot_name, full_page=True)
-                            send_telegram(f"监控中...验证码处理状态: { (i+1)*5 }秒", screenshot_name)
+                            send_telegram(f"监控中...验证码状态: { (i+1)*5 }秒", screenshot_name)
                     
                     if not verified:
-                        raise Exception("❌ 超时：验证码在 180 秒内未通过。")
+                        raise Exception("❌ 超时：验证码未在规定时间内通过。")
                 
-                # 6. 续费
+                # 5. 续费 (通过验证后立刻执行)
                 print("执行续费...")
                 page.wait_for_selector("#renew-button", state="visible", timeout=30000)
                 page.locator("#renew-button").click(force=True)
