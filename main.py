@@ -76,7 +76,6 @@ def run_automation():
                 for _ in range(3):
                     page.goto(target_url)
                     time.sleep(5)
-                    # 强制校验 URL，如果不符则重新访问
                     if page.url != target_url:
                         print(f"当前 URL 为 {page.url}，与目标不符，重新尝试访问...")
                         continue
@@ -86,7 +85,7 @@ def run_automation():
                 # 3. 广告处理
                 handle_popups_and_ads(page)
                 
-                # 4. 人机验证检测 (包含每10秒监控逻辑)
+                # 4. 人机验证检测
                 if page.locator("iframe[data-hcaptcha-widget-id]").count() > 0:
                     print("检测到 hCaptcha，开始实时监控验证过程...")
                     try:
@@ -94,36 +93,26 @@ def run_automation():
                     except: print("尝试触发交互失败，继续等待插件自动识别...")
 
                     verified = False
-                    # 180秒 / 3秒 = 60次循环
                     for i in range(60):
                         time.sleep(3)
-                        handle_popups_and_ads(page) # 循环中持续处理广告
+                        handle_popups_and_ads(page)
                         
-                        # --- 调试监控部分开始 ---
                         try:
-                            # 1. 获取 iframe 内部的 aria-checked
                             checkbox_attr = page.frame_locator("iframe[data-hcaptcha-widget-id]").locator("#checkbox").get_attribute("aria-checked")
-                            
-                            # 2. 获取 response 属性
                             widget = page.locator("iframe[data-hcaptcha-widget-id]")
                             response_attr = widget.get_attribute("data-hcaptcha-response")
                             
-                            # 打印日志到控制台
                             print(f"[调试日志] 轮次 {i+1}: aria-checked='{checkbox_attr}', response_len={len(response_attr) if response_attr else 0}")
                             
-                            # 判定逻辑：必须同时满足
                             if checkbox_attr == "true" and response_attr and len(response_attr) > 20:
                                 print(f"✅ 联合判定通过！aria-checked='{checkbox_attr}', Token长度={len(response_attr)}")
-                                # --- 满足判定后立即截图 ---
                                 page.screenshot(path="verified_snapshot.png", full_page=True)
                                 send_telegram("验证已通过，此时页面状态:", "verified_snapshot.png")
                                 verified = True
                                 break
                         except Exception as e:
                             print(f"[调试日志] 读取属性出错: {e}")
-                        # --- 调试监控部分结束 ---
                             
-                        # 每10秒发送一次截图 (3次循环为9秒，约10秒)
                         if i % 3 == 0:
                             screenshot_name = f"monitor_{i}.png"
                             page.screenshot(path=screenshot_name, full_page=True)
@@ -134,7 +123,6 @@ def run_automation():
                 
                 # 5. 续费
                 print("验证已通过，进入抗干扰等待状态...")
-                # 显式等待：检测是否有加载状态
                 for _ in range(10):
                     time.sleep(2)
                     is_loading = page.evaluate("document.querySelector('.hcaptcha-loading') !== null || document.querySelector('.spinner') !== null")
@@ -145,14 +133,19 @@ def run_automation():
                 print("执行续费...")
                 handle_popups_and_ads(page)
                 
-                try:
-                    print("尝试通过 JS 触发续费逻辑...")
-                    page.evaluate("renewServer()")
-                except Exception as e:
-                    print(f"JS 执行失败，回退到 UI 点击: {e}")
-                    page.wait_for_selector("#renew-button", state="visible", timeout=30000)
-                    page.locator("#renew-button").click(force=True)
-
+                # 方案：深度模拟点击
+                print("尝试物理坐标点击 Renew 按钮...")
+                button = page.locator("#renew-button")
+                button.wait_for(state="visible", timeout=30000)
+                box = button.bounding_box()
+                if box:
+                    # 移动到中心位置并点击
+                    page.mouse.move(box["x"] + box["width"]/2, box["y"] + box["height"]/2)
+                    page.mouse.down()
+                    page.mouse.up()
+                    print("物理鼠标点击已触发。")
+                
+                # 增加点击后的二次确认
                 time.sleep(5)
                 page.screenshot(path="final.png", full_page=True)
                 send_telegram("流程结束，请查看截图确认续费状态。", "final.png")
