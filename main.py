@@ -122,37 +122,20 @@ def run_automation():
                         raise Exception("❌ 超时：验证码未在 180 秒内通过。")
                 
                 # 5. 续费
-                print("验证已通过，进入抗干扰等待状态...")
-                for _ in range(10):
-                    time.sleep(2)
-                    is_loading = page.evaluate("document.querySelector('.hcaptcha-loading') !== null || document.querySelector('.spinner') !== null")
-                    if not is_loading:
-                        break
-                    print("检测到加载动画，继续等待...")
+                print("验证已通过，进入最终等待校验...")
+                # 额外增加一次等待，确保 Token 在网页后台已激活
+                time.sleep(8) 
                 
                 print("执行续费...")
                 handle_popups_and_ads(page)
                 
-                # 方案：深度模拟点击
-                print("尝试物理坐标点击 Renew 按钮...")
-                button = page.locator("#renew-button")
-                button.wait_for(state="visible", timeout=30000)
-                box = button.bounding_box()
-                if box:
-                    page.mouse.move(box["x"] + box["width"]/2, box["y"] + box["height"]/2)
-                    page.mouse.down()
-                    page.mouse.up()
+                # 核心改进：直接执行 JS 调用
+                # 这种方式不触发任何鼠标事件，能最大限度减少对页面其他元素的“干扰”
+                print("准备直接调用 JS renewServer()...")
+                page.evaluate("window.renewServer && window.renewServer()")
                 
-                # 点击后增加校验：如果验证码框重新出现（aria-checked 变回 false），说明续费被拒绝
-                time.sleep(3)
-                if page.locator("iframe[data-hcaptcha-widget-id]").count() > 0:
-                    try:
-                        is_reset = page.frame_locator("iframe[data-hcaptcha-widget-id]").locator("#checkbox").get_attribute("aria-checked") == "false"
-                        if is_reset:
-                            print("❌ 警告：点击后验证码被重置，续费请求被拒绝！")
-                            send_telegram("续费失败：验证码被重置，请检查账号状态。")
-                    except: pass
-
+                # 点击后等待 10 秒，观察页面是否重定向或发生变化
+                time.sleep(10)
                 page.screenshot(path="final.png", full_page=True)
                 send_telegram("流程结束，请查看截图确认续费状态。", "final.png")
                     
