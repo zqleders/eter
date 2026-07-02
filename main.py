@@ -76,9 +76,12 @@ def run_automation():
                 for _ in range(3):
                     page.goto(target_url)
                     time.sleep(5)
-                    if page.url == target_url:
+                    # 强制校验 URL，如果不符则重新访问
+                    if page.url != target_url:
+                        print(f"当前 URL 为 {page.url}，与目标不符，重新尝试访问...")
+                        continue
+                    else:
                         break
-                    print("跳转未成功，重试中...")
                 
                 # 3. 广告处理
                 handle_popups_and_ads(page)
