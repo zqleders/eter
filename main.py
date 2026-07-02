@@ -65,7 +65,7 @@ def run_automation():
                     except: pass
                     
                     print("开始实时监控验证过程...")
-                    for i in range(18): # 总共 180 秒监控
+                    for i in range(9): # 总共 180 秒监控
                         time.sleep(10)
                         screenshot_name = f"monitor_{i}.png"
                         page.screenshot(path=screenshot_name, full_page=True)
