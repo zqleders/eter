@@ -9,6 +9,8 @@ EMAIL = os.environ.get("EMAIL")
 PASSWORD = os.environ.get("PASSWORD")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+# 获取 GitHub Actions 注入的代理地址
+PROXY_SOCKS5 = os.getenv("PROXY_SOCKS5")
 
 def send_telegram(message, photo_path=None):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID: return
@@ -21,16 +23,16 @@ def send_telegram(message, photo_path=None):
         print(f"Telegram 发送失败: {e}")
 
 def handle_popups_and_ads(page):
-    """鲁棒性处理：检测广告按钮并进行交互"""
+    """鲁棒性处理：检测广告按钮、弹窗并交互"""
     try:
-        # 1. 检查奖励广告按钮 (View a short ad)
+        # 1. 检查奖励广告按钮
         reward_ad_btn = page.locator("button.fc-rewarded-ad-button")
         if reward_ad_btn.count() > 0 and reward_ad_btn.is_visible():
             print("检测到奖励广告按钮，点击观看...")
             reward_ad_btn.click(force=True)
-            time.sleep(20)  # 等待广告播放
+            time.sleep(22)  # 等待广告播放
             
-            # 2. 点击关闭按钮
+            # 2. 点击关闭按钮 (ID 为 dismiss-button)
             close_btn = page.locator("#dismiss-button")
             if close_btn.count() > 0 and close_btn.is_visible():
                 print("广告播放结束，关闭广告...")
@@ -48,8 +50,13 @@ def handle_popups_and_ads(page):
 
 def run_automation():
     target_url = "https://eternalzero.cloud/servers/5541/info"
+    
+    # 代理配置
+    proxy_config = {"server": PROXY_SOCKS5} if PROXY_SOCKS5 else None
+    
     with sync_playwright() as p:
-        with BrowserManager(p) as context:
+        # 确保 BrowserManager 接收 proxy 参数并传给 launch
+        with BrowserManager(p, proxy=proxy_config) as context:
             page = context.new_page()
             page.set_viewport_size({"width": 1920, "height": 1080})
             
@@ -57,22 +64,29 @@ def run_automation():
                 # 1. 登录
                 print("访问登录页...")
                 page.goto("https://eternalzero.cloud/login")
+                
+                time.sleep(2)
+                page.screenshot(path="login_debug.png", full_page=True)
+                send_telegram("页面已加载，当前状态截图:", "login_debug.png")
+                
                 page.fill("input#email", EMAIL)
                 page.fill("input#password", PASSWORD)
                 page.get_by_role("button", name="Sign in").click()
+                
+                print("登录中，等待跳转...")
                 page.wait_for_load_state("networkidle")
                 time.sleep(10) 
 
                 # 2. 访问并确保跳转到目标页面
                 print(f"跳转到目标页面: {target_url}")
-                for _ in range(3): # 最多重试3次
+                for _ in range(3):
                     page.goto(target_url)
                     time.sleep(5)
                     if page.url == target_url:
                         break
                     print("跳转未成功，重试中...")
                 
-                # 3. 主循环前清理广告与弹窗
+                # 3. 广告处理
                 handle_popups_and_ads(page)
                 
                 # 4. 人机验证检测
@@ -80,13 +94,12 @@ def run_automation():
                     print("检测到 hCaptcha，监控验证响应...")
                     try:
                         page.frame_locator("iframe[data-hcaptcha-widget-id]").locator("#checkbox").click(force=True)
-                    except: pass
+                    except: print("尝试触发交互失败，继续等待...")
 
                     verified = False
                     for i in range(60):
                         time.sleep(3)
-                        # 再次处理可能出现的弹窗
-                        handle_popups_and_ads(page)
+                        handle_popups_and_ads(page) # 循环中持续处理广告
                         
                         widget = page.locator("iframe[data-hcaptcha-widget-id]")
                         response = widget.get_attribute("data-hcaptcha-response")
@@ -104,7 +117,7 @@ def run_automation():
 
                 time.sleep(5)
                 page.screenshot(path="final.png", full_page=True)
-                send_telegram("续费成功。", "final.png")
+                send_telegram("流程结束，续费成功。", "final.png")
                     
             except Exception as e:
                 error_msg = f"任务执行出错: {str(e)}"
