@@ -96,20 +96,32 @@ def run_automation():
                         time.sleep(3)
                         handle_popups_and_ads(page) # 循环中持续处理广告
                         
-                        # 监测 response 属性
-                        widget = page.locator("iframe[data-hcaptcha-widget-id]")
-                        response = widget.get_attribute("data-hcaptcha-response")
-                        
-                        if response and len(response) > 20:
-                            print("✅ 验证通过！")
-                            verified = True
-                            break
+                        # --- 调试监控部分开始 ---
+                        try:
+                            # 1. 获取 iframe 内部的 aria-checked
+                            checkbox_attr = page.frame_locator("iframe[data-hcaptcha-widget-id]").locator("#checkbox").get_attribute("aria-checked")
                             
-                        # 每10秒发送一次截图 (循环3次为9秒，接近10秒)
+                            # 2. 获取 response 属性
+                            widget = page.locator("iframe[data-hcaptcha-widget-id]")
+                            response_attr = widget.get_attribute("data-hcaptcha-response")
+                            
+                            # 打印日志到控制台
+                            print(f"[调试日志] 轮次 {i+1}: aria-checked='{checkbox_attr}', response_len={len(response_attr) if response_attr else 0}")
+                            
+                            # 判定逻辑：必须同时满足
+                            if checkbox_attr == "true" and response_attr and len(response_attr) > 20:
+                                print(f"✅ 联合判定通过！aria-checked='{checkbox_attr}', Token长度={len(response_attr)}")
+                                verified = True
+                                break
+                        except Exception as e:
+                            print(f"[调试日志] 读取属性出错: {e}")
+                        # --- 调试监控部分结束 ---
+                            
+                        # 每10秒发送一次截图 (3次循环为9秒，约10秒)
                         if i % 3 == 0:
                             screenshot_name = f"monitor_{i}.png"
                             page.screenshot(path=screenshot_name, full_page=True)
-                            send_telegram(f"监控中...验证码处理状态: { (i+1)*3 }秒", screenshot_name)
+                            send_telegram(f"监控中...状态: 勾选={checkbox_attr if 'checkbox_attr' in locals() else '未知'} | Token长度={len(response_attr) if 'response_attr' in locals() and response_attr else 0}", screenshot_name)
                     
                     if not verified:
                         raise Exception("❌ 超时：验证码未在 180 秒内通过。")
