@@ -7,8 +7,8 @@ from browser import BrowserManager  # 使用你要求的 BrowserManager
 # 获取环境配置
 EMAIL = os.environ.get("EMAIL")
 PASSWORD = os.environ.get("PASSWORD")
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 def send_telegram(message, photo_path=None):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID: return
@@ -28,7 +28,7 @@ def run_automation():
             page.set_viewport_size({"width": 1920, "height": 1080})
             
             try:
-                # 1. 登录逻辑 (我们的业务)
+                # 1. 登录
                 print("访问登录页...")
                 page.goto("https://eternalzero.cloud/login")
                 page.fill("input#email", EMAIL)
@@ -37,12 +37,12 @@ def run_automation():
                 page.wait_for_load_state("networkidle")
                 time.sleep(5)
 
-                # 2. 访问 Info 页面 (我们的业务)
+                # 2. 访问 Info 页面
                 print("访问 Info 页面...")
                 page.goto("https://eternalzero.cloud/servers/5541/info")
                 time.sleep(5)
 
-                # 3. 清理广告 (我们的业务)
+                # 3. 清理广告
                 page.evaluate("""() => {
                     const selectors = ['button.fc-cta-consent', 'button.fc-rewarded-ad-button', '#dismiss-button-element', 'ins.adsbygoogle', 'iframe[src*="ads"]', '.modal-backdrop'];
                     selectors.forEach(sel => {
@@ -50,37 +50,29 @@ def run_automation():
                     });
                 }""")
                 
-                print("点击 Renew server...")
-                page.wait_for_selector("#renew-button", state="visible", timeout=30000)
-                page.locator("#renew-button").click(force=True)
-                
-                # 4. 验证码监控逻辑 (100% COPY 逻辑)
-                time.sleep(3)
-                # 针对 hCaptcha 调整选择器，通常容器包含 h-captcha
+                # 4. 人机验证检测与处理
+                # 如果页面一加载就有验证码，先处理它，再点击 Renew
                 if page.locator("iframe[src*='hcaptcha']").count() > 0:
                     print("检测到验证码，准备激活...")
                     try:
-                        # 尝试点击验证框
                         page.locator("iframe[src*='hcaptcha']").content_frame.locator("#checkbox").click()
                     except: pass
                     
                     print("开始实时监控验证过程...")
-                    for i in range(9): # 总共 180 秒监控
+                    for i in range(18): 
                         time.sleep(10)
                         screenshot_name = f"monitor_{i}.png"
                         page.screenshot(path=screenshot_name, full_page=True)
                         send_telegram(f"验证码处理中... ({ (i+1)*10 }秒)", screenshot_name)
                         
-                        # 检查验证码是否消失 (hcaptcha 通常在解决后会更新或消失)
                         if page.locator("iframe[src*='hcaptcha']").count() == 0:
                             print("✅ 验证码已通过！")
                             break
                 
-                print("执行最终确认...")
-                try:
-                    page.locator("#renew-button").click(force=True)
-                except Exception as e:
-                    print(f"最终确认失败: {e}")
+                # 5. 验证通过后，执行续费
+                print("验证已通过，执行续费...")
+                page.wait_for_selector("#renew-button", state="visible", timeout=30000)
+                page.locator("#renew-button").click(force=True)
 
                 time.sleep(5)
                 page.screenshot(path="final.png", full_page=True)
