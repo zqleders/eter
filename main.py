@@ -40,8 +40,11 @@ def run_automation():
                 page.fill("input#email", EMAIL)
                 page.fill("input#password", PASSWORD)
                 page.get_by_role("button", name="Sign in").click()
+                
+                # 登录后增加显著延迟，确保 Session 建立和页面跳转完成
+                print("登录中，请稍候...")
                 page.wait_for_load_state("networkidle")
-                time.sleep(5)
+                time.sleep(10) 
 
                 # 2. 访问 Info 页面
                 print("访问 Info 页面...")
@@ -62,21 +65,18 @@ def run_automation():
                     });
                 }""")
                 
-                # 4. 人机验证检测 (精确判断 aria-checked="true")
+                # 4. 人机验证检测
                 if page.locator("iframe[src*='hcaptcha']").count() > 0:
                     print("检测到 hCaptcha 容器...")
-                    
-                    # 尝试强制点击触发
                     try:
                         page.frame_locator("iframe[src*='hcaptcha']").locator("#checkbox").click(force=True)
                     except: pass
 
                     print("监控 aria-checked 状态...")
                     verified = False
-                    for i in range(60): # 循环 60 次，每次 3 秒，总计 180 秒
+                    for i in range(60): 
                         time.sleep(3) 
                         try:
-                            # 直接获取 iframe 内部 checkbox 的属性
                             checkbox = page.frame_locator("iframe[src*='hcaptcha']").locator("#checkbox")
                             is_checked = checkbox.get_attribute("aria-checked")
                             
@@ -92,7 +92,7 @@ def run_automation():
 
                         if i % 4 == 0:
                             page.screenshot(path="monitor.png", full_page=True)
-                            send_telegram(f"监控中...验证进度，当前 aria-checked 状态: {is_checked if 'is_checked' in locals() else '未知'}", "monitor.png")
+                            send_telegram(f"监控中...当前状态: {is_checked if 'is_checked' in locals() else '未知'}", "monitor.png")
                     
                     if not verified:
                         raise Exception("❌ 超时：验证码在 180 秒内未通过。")
