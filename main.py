@@ -32,7 +32,7 @@ def run_automation():
                 print("访问登录页...")
                 page.goto("https://eternalzero.cloud/login")
                 
-                # 新增：页面加载后立即截图并发送，便于排查 Timeout 问题
+                # 页面加载后截图排查
                 time.sleep(2)
                 page.screenshot(path="login_debug.png", full_page=True)
                 send_telegram("页面已加载，当前状态截图:", "login_debug.png")
@@ -50,51 +50,52 @@ def run_automation():
                 page.reload()
                 time.sleep(3)
 
-                # 3. 清理广告
+                # 3. 清理广告 (绕过反广告检测)
                 page.evaluate("""() => {
                     const guard = document.getElementById('panel-guard-layer');
                     if(guard) { guard.style.display = 'none'; guard.style.visibility = 'hidden'; }
-
-                    const selectors = [
-                        'iframe[src*="googleads"]', 'iframe[src*="ads"]', 'iframe[src*="doubleclick"]',
-                        '.adsbygoogle', '#dismiss-button-element', 'button.fc-cta-consent', '.modal-backdrop'
-                    ];
+                    const selectors = ['iframe[src*="googleads"]', 'iframe[src*="ads"]', '.adsbygoogle', '#dismiss-button-element', 'button.fc-cta-consent', '.modal-backdrop'];
                     selectors.forEach(sel => {
                         document.querySelectorAll(sel).forEach(el => {
                             el.style.setProperty('display', 'none', 'important');
-                            el.style.setProperty('pointer-events', 'none', 'important');
                         });
                     });
                 }""")
                 
-                # 4. 人机验证检测与处理
+                # 4. 人机验证检测 (精确判断 aria-checked="true")
                 if page.locator("iframe[src*='hcaptcha']").count() > 0:
                     print("检测到 hCaptcha 容器...")
+                    
+                    # 尝试强制点击触发
                     try:
-                        captcha_frame = page.frame_locator("iframe[src*='hcaptcha']")
-                        captcha_frame.locator("#checkbox").click(force=True, timeout=5000)
-                    except: print("尝试触发交互失败，继续监控...")
+                        page.frame_locator("iframe[src*='hcaptcha']").locator("#checkbox").click(force=True)
+                    except: pass
 
+                    print("监控 aria-checked 状态...")
                     verified = False
-                    for i in range(36): 
-                        time.sleep(5) 
+                    for i in range(60): # 循环 60 次，每次 3 秒，总计 180 秒
+                        time.sleep(3) 
                         try:
-                            captcha_frame = page.frame_locator("iframe[src*='hcaptcha']")
-                            is_checked = captcha_frame.locator("#checkbox, .checkbox-checked").get_attribute("aria-checked") == "true"
-                            response = page.evaluate("document.querySelector('[name=h-captcha-response]')?.value")
-                            has_response = response and len(response) > 10
+                            # 直接获取 iframe 内部 checkbox 的属性
+                            checkbox = page.frame_locator("iframe[src*='hcaptcha']").locator("#checkbox")
+                            is_checked = checkbox.get_attribute("aria-checked")
                             
-                            if is_checked or has_response:
-                                print("✅ 验证已通过！")
+                            if is_checked == "true":
+                                print("✅ 检测到 aria-checked='true'，验证通过！")
                                 verified = True
                                 break
-                        except: pass
-                        if i % 2 == 0:
+                            else:
+                                print(f"监控中...当前状态: {is_checked}")
+                                
+                        except Exception as e:
+                            pass
+
+                        if i % 4 == 0:
                             page.screenshot(path="monitor.png", full_page=True)
-                            send_telegram(f"监控中...验证码处理状态: { (i+1)*5 }秒", "monitor.png")
+                            send_telegram(f"监控中...验证进度，当前 aria-checked 状态: {is_checked if 'is_checked' in locals() else '未知'}", "monitor.png")
                     
                     if not verified:
-                        raise Exception("❌ 超时：验证码未在 180 秒内通过。")
+                        raise Exception("❌ 超时：验证码在 180 秒内未通过。")
                 
                 # 5. 续费
                 print("执行续费...")
