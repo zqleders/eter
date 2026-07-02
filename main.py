@@ -21,16 +21,28 @@ def send_telegram(message, photo_path=None):
         print(f"Telegram 发送失败: {e}")
 
 def handle_popups_and_ads(page):
-    """鲁棒性处理：检测广告按钮、弹窗并交互"""
+    """鲁棒性处理：检测广告、弹窗、欧洲IP合规询问对话框"""
     try:
-        # 1. 检查奖励广告按钮
+        # 1. 新增：处理欧洲IP合规询问/GDPR弹窗
+        # 常见选择器：.cookie-consent, #eu-consent, .gdpr-banner 等，这里加入通用逻辑
+        page.evaluate("""() => {
+            const consentSelectors = [
+                '.fc-dialog', '.cookie-consent', '#eu-consent', 
+                'button:has-text("Accept")', 'button:has-text("Agree")'
+            ];
+            consentSelectors.forEach(sel => {
+                const el = document.querySelector(sel);
+                if(el) { el.style.display = 'none'; }
+            });
+        }""")
+
+        # 2. 检查奖励广告按钮
         reward_ad_btn = page.locator("button.fc-rewarded-ad-button")
         if reward_ad_btn.count() > 0 and reward_ad_btn.is_visible():
             print("检测到奖励广告按钮，点击观看...")
             reward_ad_btn.click(force=True)
-            time.sleep(22)  # 等待广告播放
+            time.sleep(22) 
             
-            # 2. 点击关闭按钮
             close_btn = page.locator("#dismiss-button")
             if close_btn.count() > 0 and close_btn.is_visible():
                 print("广告播放结束，关闭广告...")
@@ -82,7 +94,7 @@ def run_automation():
                     else:
                         break
                 
-                # 3. 广告处理
+                # 3. 广告处理 (自动包含欧洲IP询问对话框清理)
                 handle_popups_and_ads(page)
                 
                 # 4. 人机验证检测
@@ -123,18 +135,14 @@ def run_automation():
                 
                 # 5. 续费
                 print("验证已通过，进入最终等待校验...")
-                # 额外增加一次等待，确保 Token 在网页后台已激活
                 time.sleep(8) 
                 
                 print("执行续费...")
                 handle_popups_and_ads(page)
                 
-                # 核心改进：直接执行 JS 调用
-                # 这种方式不触发任何鼠标事件，能最大限度减少对页面其他元素的“干扰”
                 print("准备直接调用 JS renewServer()...")
                 page.evaluate("window.renewServer && window.renewServer()")
                 
-                # 点击后等待 10 秒，观察页面是否重定向或发生变化
                 time.sleep(10)
                 page.screenshot(path="final.png", full_page=True)
                 send_telegram("流程结束，请查看截图确认续费状态。", "final.png")
