@@ -83,25 +83,36 @@ def run_automation():
                 # 3. 广告处理
                 handle_popups_and_ads(page)
                 
-                # 4. 人机验证检测
+                # 4. 人机验证检测 (包含每10秒监控逻辑)
                 if page.locator("iframe[data-hcaptcha-widget-id]").count() > 0:
-                    print("检测到 hCaptcha，监控验证响应...")
+                    print("检测到 hCaptcha，开始实时监控验证过程...")
                     try:
                         page.frame_locator("iframe[data-hcaptcha-widget-id]").locator("#checkbox").click(force=True)
                     except: print("尝试触发交互失败，继续等待插件自动识别...")
 
                     verified = False
+                    # 180秒 / 3秒 = 60次循环
                     for i in range(60):
                         time.sleep(3)
                         handle_popups_and_ads(page) # 循环中持续处理广告
                         
+                        # 监测 response 属性
                         widget = page.locator("iframe[data-hcaptcha-widget-id]")
                         response = widget.get_attribute("data-hcaptcha-response")
+                        
                         if response and len(response) > 20:
                             print("✅ 验证通过！")
                             verified = True
                             break
-                    if not verified: raise Exception("人机验证超时")
+                            
+                        # 每10秒发送一次截图 (循环3次为9秒，接近10秒)
+                        if i % 3 == 0:
+                            screenshot_name = f"monitor_{i}.png"
+                            page.screenshot(path=screenshot_name, full_page=True)
+                            send_telegram(f"监控中...验证码处理状态: { (i+1)*3 }秒", screenshot_name)
+                    
+                    if not verified:
+                        raise Exception("❌ 超时：验证码未在 180 秒内通过。")
                 
                 # 5. 续费
                 print("执行续费...")
