@@ -114,6 +114,9 @@ def run_automation():
                             # 判定逻辑：必须同时满足
                             if checkbox_attr == "true" and response_attr and len(response_attr) > 20:
                                 print(f"✅ 联合判定通过！aria-checked='{checkbox_attr}', Token长度={len(response_attr)}")
+                                # --- 满足判定后立即截图 ---
+                                page.screenshot(path="verified_snapshot.png", full_page=True)
+                                send_telegram("验证已通过，此时页面状态:", "verified_snapshot.png")
                                 verified = True
                                 break
                         except Exception as e:
@@ -131,11 +134,9 @@ def run_automation():
                 
                 # 5. 续费
                 print("验证已通过，进入抗干扰等待状态...")
-                # 显式等待：观察是否存在转圈图标或其他加载状态，最简单的办法是增加缓冲并检测
+                # 显式等待：检测是否有加载状态
                 for _ in range(10):
                     time.sleep(2)
-                    # 检查是否有转圈元素（通常 hCaptcha 验证通过后，如果还在转圈，说明后台在验证 Token）
-                    # 我们通过检查是否有特定的“正在加载”标识来决定是否继续等待
                     is_loading = page.evaluate("document.querySelector('.hcaptcha-loading') !== null || document.querySelector('.spinner') !== null")
                     if not is_loading:
                         break
