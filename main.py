@@ -21,44 +21,40 @@ def send_telegram(message, photo_path=None):
         print(f"Telegram 发送失败: {e}")
 
 def handle_popups_and_ads(page):
-    """鲁棒性处理：检测广告按钮、弹窗并交互"""
+    """底层清理逻辑：检测并移除所有遮罩、弹窗、广告"""
     try:
-        # --- 强制处理合规对话框 ---
+        # 1. 强制点击所有包含 Consent/Agree 的合规按钮
         page.evaluate("""() => {
-            const buttons = Array.from(document.querySelectorAll('button'));
-            buttons.forEach(btn => {
-                if (btn.innerText.toLowerCase().includes('consent') || btn.innerText.toLowerCase().includes('agree')) {
-                    btn.click();
-                }
+            document.querySelectorAll('button').forEach(btn => {
+                const t = btn.innerText.toLowerCase();
+                if (t.includes('consent') || t.includes('agree')) btn.click();
             });
         }""")
-        time.sleep(1)
-
-        # 1. 检查奖励广告按钮
+        
+        # 2. 广告交互
         reward_ad_btn = page.locator("button.fc-rewarded-ad-button")
         if reward_ad_btn.count() > 0 and reward_ad_btn.is_visible():
-            print("检测到奖励广告按钮，点击观看...")
             reward_ad_btn.click(force=True)
-            time.sleep(22)  # 等待广告播放
-            
-            # 2. 点击关闭按钮
+            time.sleep(22)
             close_btn = page.locator("#dismiss-button")
             if close_btn.count() > 0 and close_btn.is_visible():
-                print("广告播放结束，关闭广告...")
                 close_btn.click(force=True)
                 time.sleep(2)
 
-        # 3. 完整遮罩清理逻辑（已恢复至你确认有效时的状态）
+        # 3. 遮罩移除
         page.evaluate("""() => {
             const guard = document.getElementById('panel-guard-layer');
-            if(guard) { guard.style.display = 'none'; }
-            // 修复：包含对所有模态框背景和相关合规性弹窗容器的清理
+            if(guard) guard.style.display = 'none';
             document.querySelectorAll('.modal-backdrop, .fc-cta-consent, .fc-dialog-container, #fc-consent-modal').forEach(el => el.style.display = 'none');
-            // 修复：移除 body 的滚动锁定，防止无法操作
             document.body.style.overflow = 'auto';
         }""")
     except Exception as e:
-        print(f"广告处理过程中的非致命错误: {e}")
+        print(f"清理过程中的非致命错误: {e}")
+
+def ensure_clean_screen(page):
+    """前置守护函数：在操作前确保页面无遮挡"""
+    handle_popups_and_ads(page)
+    time.sleep(1) # 给弹窗消失留出短暂缓冲
 
 def run_automation():
     target_url = "https://eternalzero.cloud/servers/5541/info"
@@ -69,86 +65,54 @@ def run_automation():
             page.set_viewport_size({"width": 1920, "height": 1080})
             
             try:
-                # 1. 登录
-                print("访问登录页...")
+                # 1. 登录流程
                 page.goto("https://eternalzero.cloud/login")
-                
-                time.sleep(2)
-                page.screenshot(path="login_debug.png", full_page=True)
-                send_telegram("页面已加载，当前状态截图:", "login_debug.png")
+                ensure_clean_screen(page) # 操作前检查
                 
                 page.fill("input#email", EMAIL)
                 page.fill("input#password", PASSWORD)
+                
+                ensure_clean_screen(page)
                 page.get_by_role("button", name="Sign in").click()
                 
                 print("登录中，等待跳转...")
                 page.wait_for_load_state("networkidle")
                 time.sleep(10) 
 
-                # 2. 访问并确保跳转到目标页面
+                # 2. 访问目标页面
                 print(f"跳转到目标页面: {target_url}")
                 for _ in range(3):
+                    ensure_clean_screen(page)
                     page.goto(target_url)
                     time.sleep(5)
-                    if page.url != target_url:
-                        print(f"当前 URL 为 {page.url}，与目标不符，重新尝试访问...")
-                        continue
-                    else:
-                        break
+                    if page.url == target_url: break
                 
-                # 3. 广告处理
-                handle_popups_and_ads(page)
-                
-                # 4. 人机验证检测
+                # 3. 人机验证检测
                 if page.locator("iframe[data-hcaptcha-widget-id]").count() > 0:
-                    print("检测到 hCaptcha，开始实时监控验证过程...")
-                    try:
-                        page.frame_locator("iframe[data-hcaptcha-widget-id]").locator("#checkbox").click(force=True)
-                    except: print("尝试触发交互失败，继续等待插件自动识别...")
+                    print("检测到 hCaptcha...")
+                    ensure_clean_screen(page)
+                    page.frame_locator("iframe[data-hcaptcha-widget-id]").locator("#checkbox").click(force=True)
 
                     verified = False
                     for i in range(60):
                         time.sleep(3)
-                        handle_popups_and_ads(page)
+                        ensure_clean_screen(page) # 循环中持续监控
                         
                         try:
                             checkbox_attr = page.frame_locator("iframe[data-hcaptcha-widget-id]").locator("#checkbox").get_attribute("aria-checked")
-                            widget = page.locator("iframe[data-hcaptcha-widget-id]")
-                            response_attr = widget.get_attribute("data-hcaptcha-response")
-                            
-                            print(f"[调试日志] 轮次 {i+1}: aria-checked='{checkbox_attr}', response_len={len(response_attr) if response_attr else 0}")
+                            response_attr = page.locator("iframe[data-hcaptcha-widget-id]").get_attribute("data-hcaptcha-response")
                             
                             if checkbox_attr == "true" and response_attr and len(response_attr) > 20:
-                                print(f"✅ 联合判定通过！aria-checked='{checkbox_attr}', Token长度={len(response_attr)}")
-                                page.screenshot(path="verified_snapshot.png", full_page=True)
-                                send_telegram("验证已通过，此时页面状态:", "verified_snapshot.png")
                                 verified = True
                                 break
-                        except Exception as e:
-                            print(f"[调试日志] 读取属性出错: {e}")
-                            
-                        if i % 3 == 0:
-                            screenshot_name = f"monitor_{i}.png"
-                            page.screenshot(path=screenshot_name, full_page=True)
-                            send_telegram(f"监控中...状态: 勾选={checkbox_attr if 'checkbox_attr' in locals() else '未知'} | Token长度={len(response_attr) if 'response_attr' in locals() and response_attr else 0}", screenshot_name)
+                        except: pass
                     
-                    if not verified:
-                        raise Exception("❌ 超时：验证码未在 180 秒内通过。")
+                    if not verified: raise Exception("❌ 验证超时")
                 
-                # 5. 续费
-                print("验证已通过，进入抗干扰等待状态...")
-                for _ in range(10):
-                    time.sleep(2)
-                    is_loading = page.evaluate("document.querySelector('.hcaptcha-loading') !== null || document.querySelector('.spinner') !== null")
-                    if not is_loading:
-                        break
-                    print("检测到加载动画，继续等待...")
+                # 4. 续费
+                print("准备执行续费...")
+                ensure_clean_screen(page)
                 
-                print("执行续费...")
-                handle_popups_and_ads(page)
-                
-                # 方案：深度模拟点击
-                print("尝试物理坐标点击 Renew 按钮...")
                 button = page.locator("#renew-button")
                 button.wait_for(state="visible", timeout=30000)
                 box = button.bounding_box()
@@ -157,18 +121,9 @@ def run_automation():
                     page.mouse.down()
                     page.mouse.up()
                 
-                # 点击后增加校验：如果验证码框重新出现（aria-checked 变回 false），说明续费被拒绝
-                time.sleep(3)
-                if page.locator("iframe[data-hcaptcha-widget-id]").count() > 0:
-                    try:
-                        is_reset = page.frame_locator("iframe[data-hcaptcha-widget-id]").locator("#checkbox").get_attribute("aria-checked") == "false"
-                        if is_reset:
-                            print("❌ 警告：点击后验证码被重置，续费请求被拒绝！")
-                            send_telegram("续费失败：验证码被重置，请检查账号状态。")
-                    except: pass
-
+                time.sleep(5)
                 page.screenshot(path="final.png", full_page=True)
-                send_telegram("流程结束，请查看截图确认续费状态。", "final.png")
+                send_telegram("流程结束。", "final.png")
                     
             except Exception as e:
                 error_msg = f"任务执行出错: {str(e)}"
