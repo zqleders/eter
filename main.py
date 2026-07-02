@@ -23,16 +23,16 @@ def send_telegram(message, photo_path=None):
 def handle_popups_and_ads(page):
     """鲁棒性处理：检测广告按钮、弹窗并交互"""
     try:
-        # --- 新增：处理欧洲IP合规对话框 ---
+        # --- 统一处理：检查欧洲IP合规对话框及所有广告 ---
         page.evaluate("""() => {
             document.querySelectorAll('button').forEach(btn => {
-                if (btn.innerText.toLowerCase().includes('consent') || btn.innerText.toLowerCase().includes('agree')) {
+                const text = btn.innerText.toLowerCase();
+                if (text.includes('consent') || text.includes('agree')) {
                     btn.click();
                 }
             });
         }""")
-        time.sleep(1)
-
+        
         # 1. 检查奖励广告按钮
         reward_ad_btn = page.locator("button.fc-rewarded-ad-button")
         if reward_ad_btn.count() > 0 and reward_ad_btn.is_visible():
@@ -69,10 +69,15 @@ def run_automation():
                 print("访问登录页...")
                 page.goto("https://eternalzero.cloud/login")
                 
+                # 操作前检查
+                handle_popups_and_ads(page)
+                
                 time.sleep(2)
                 page.screenshot(path="login_debug.png", full_page=True)
                 send_telegram("页面已加载，当前状态截图:", "login_debug.png")
                 
+                # 操作前检查
+                handle_popups_and_ads(page)
                 page.fill("input#email", EMAIL)
                 page.fill("input#password", PASSWORD)
                 page.get_by_role("button", name="Sign in").click()
@@ -84,6 +89,8 @@ def run_automation():
                 # 2. 访问并确保跳转到目标页面
                 print(f"跳转到目标页面: {target_url}")
                 for _ in range(3):
+                    # 操作前检查
+                    handle_popups_and_ads(page)
                     page.goto(target_url)
                     time.sleep(5)
                     if page.url != target_url:
@@ -99,6 +106,8 @@ def run_automation():
                 if page.locator("iframe[data-hcaptcha-widget-id]").count() > 0:
                     print("检测到 hCaptcha，开始实时监控验证过程...")
                     try:
+                        # 操作前检查
+                        handle_popups_and_ads(page)
                         page.frame_locator("iframe[data-hcaptcha-widget-id]").locator("#checkbox").click(force=True)
                     except: print("尝试触发交互失败，继续等待插件自动识别...")
 
@@ -141,6 +150,7 @@ def run_automation():
                     print("检测到加载动画，继续等待...")
                 
                 print("执行续费...")
+                # 操作前检查
                 handle_popups_and_ads(page)
                 
                 # 方案：深度模拟点击
