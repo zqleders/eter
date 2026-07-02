@@ -36,7 +36,7 @@ def handle_popups_and_ads(page):
             print("检测到 View a Short ad 按钮，点击触发播放...")
             ad_btn.click(force=True)
             print("广告播放中，等待 25 秒...")
-            time.sleep(25) # 广告播放时长
+            time.sleep(25) 
             
             # 3. 广告播放完成后，点击关闭按钮
             close_btn = page.locator("#dismiss-button")
@@ -85,12 +85,12 @@ def run_automation():
                     if page.url == target_url:
                         break
                 
-                # 3. 循环处理直到广告/验证都消失
+                # 3. 循环处理
                 for _ in range(5):
                     handle_popups_and_ads(page)
                     time.sleep(3)
                 
-                # 4. 人机验证检测
+                # 4. 人机验证监控 (保留每10秒发送截图逻辑)
                 if page.locator("iframe[data-hcaptcha-widget-id]").count() > 0:
                     print("检测到 hCaptcha，开始实时监控验证过程...")
                     try:
@@ -101,12 +101,21 @@ def run_automation():
                     for i in range(60):
                         time.sleep(3)
                         handle_popups_and_ads(page)
+                        
+                        # --- 监控逻辑：每 10 秒发送截图 ---
+                        if i % 3 == 0:
+                            screenshot_name = f"monitor_{i}.png"
+                            page.screenshot(path=screenshot_name, full_page=True)
+                            send_telegram(f"监控中 (轮次 {i})...", screenshot_name)
+
                         try:
                             checkbox_attr = page.frame_locator("iframe[data-hcaptcha-widget-id]").locator("#checkbox").get_attribute("aria-checked")
                             response_attr = page.locator("iframe[data-hcaptcha-widget-id]").get_attribute("data-hcaptcha-response")
                             
                             if checkbox_attr == "true" and response_attr and len(response_attr) > 20:
                                 print(f"✅ 联合判定通过！")
+                                page.screenshot(path="verified_snapshot.png", full_page=True)
+                                send_telegram("验证已通过，此时页面状态:", "verified_snapshot.png")
                                 verified = True
                                 break
                         except: pass
