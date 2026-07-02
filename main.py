@@ -130,13 +130,20 @@ def run_automation():
                         raise Exception("❌ 超时：验证码未在 180 秒内通过。")
                 
                 # 5. 续费
-                print("验证已通过，强制等待服务器校验...")
-                time.sleep(5) 
+                print("验证已通过，进入抗干扰等待状态...")
+                # 显式等待：观察是否存在转圈图标或其他加载状态，最简单的办法是增加缓冲并检测
+                for _ in range(10):
+                    time.sleep(2)
+                    # 检查是否有转圈元素（通常 hCaptcha 验证通过后，如果还在转圈，说明后台在验证 Token）
+                    # 我们通过检查是否有特定的“正在加载”标识来决定是否继续等待
+                    is_loading = page.evaluate("document.querySelector('.hcaptcha-loading') !== null || document.querySelector('.spinner') !== null")
+                    if not is_loading:
+                        break
+                    print("检测到加载动画，继续等待...")
                 
                 print("执行续费...")
                 handle_popups_and_ads(page)
                 
-                # 方案调整：优先使用 JS 直接执行 onclick 函数
                 try:
                     print("尝试通过 JS 触发续费逻辑...")
                     page.evaluate("renewServer()")
