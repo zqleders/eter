@@ -20,6 +20,8 @@ jobs:
           pip install -r requirements.txt
           playwright install chromium
           
+      - name: Setup Gost Proxy
+        run: |
           # 👇👇👇 正在启动gost代理 👇👇👇                
           wget -q https://github.com/ginuerzh/gost/releases/download/v2.11.5/gost-linux-amd64-2.11.5.gz
           gunzip -f gost-linux-amd64-2.11.5.gz
