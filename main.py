@@ -41,7 +41,7 @@ def run_automation():
                 print("访问 Info 页面...")
                 page.goto("https://eternalzero.cloud/servers/5541/info")
                 time.sleep(5)
-                page.reload() # 强制刷新确保插件捕获 iframe
+                page.reload()
                 time.sleep(3)
 
                 # 3. 清理广告
@@ -52,16 +52,20 @@ def run_automation():
                     });
                 }""")
                 
-                # 4. 人机验证检测与处理 (增强版)
-                captcha_frame = page.frame_locator("iframe[src*='hcaptcha']")
-                if captcha_frame.count() > 0:
-                    print("检测到 hCaptcha 容器，尝试唤醒插件...")
-                    try:
-                        # 强制对焦 iframe 内部
-                        captcha_frame.locator("body").click(timeout=5000)
-                    except: 
-                        print("无法直接交互，跳过强制唤醒")
+                # 4. 人机验证检测与处理 (已增强插件触发逻辑)
+                captcha_locator = page.locator("iframe[src*='hcaptcha']")
+                if captcha_locator.count() > 0:
+                    print("检测到 hCaptcha 容器，正在激活插件拦截...")
                     
+                    # 针对插件的增强：强制手动触发 iframe 内部的 checkbox
+                    # 很多自动化插件需要检测到具体的点击行为才能接管识别
+                    try:
+                        frame = page.frame_locator("iframe[src*='hcaptcha']")
+                        # 尝试点击复选框中心，触发插件监听
+                        frame.locator("#checkbox").click(force=True, timeout=5000)
+                    except Exception as e:
+                        print(f"点击触发失败，尝试进入页面沉睡观察: {e}")
+
                     print("开始实时监控验证过程...")
                     verified = False
                     for i in range(18): 
@@ -71,7 +75,7 @@ def run_automation():
                         send_telegram(f"监控中...验证码处理状态: { (i+1)*10 }秒", screenshot_name)
                         
                         # 检测方式1：容器消失
-                        if page.locator("iframe[src*='hcaptcha']").count() == 0:
+                        if captcha_locator.count() == 0:
                             print("✅ 验证码已通过！")
                             verified = True
                             break
