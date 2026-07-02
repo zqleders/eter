@@ -23,7 +23,7 @@ def send_telegram(message, photo_path=None):
 def handle_popups_and_ads(page):
     """鲁棒性处理：检测广告按钮、弹窗并交互"""
     try:
-        # 1. 强制处理欧洲IP合规对话框
+        # 1. 新增：处理合规对话框
         page.evaluate("""() => {
             document.querySelectorAll('button').forEach(btn => {
                 const text = btn.innerText.toLowerCase();
@@ -33,15 +33,14 @@ def handle_popups_and_ads(page):
             });
         }""")
         
-        # 2. 检查并处理观看广告按钮
+        # 2. 检查奖励广告按钮
         reward_ad_btn = page.locator("button.fc-rewarded-ad-button")
         if reward_ad_btn.count() > 0 and reward_ad_btn.is_visible():
             print("检测到奖励广告按钮，点击观看...")
             reward_ad_btn.click(force=True)
-            print("广告播放中，等待 22 秒...")
             time.sleep(22)  # 等待广告播放
             
-            # 3. 处理关闭按钮
+            # 3. 点击关闭按钮
             close_btn = page.locator("#dismiss-button")
             if close_btn.count() > 0 and close_btn.is_visible():
                 print("广告播放结束，关闭广告...")
@@ -68,16 +67,13 @@ def run_automation():
             try:
                 # 1. 登录
                 print("访问登录页...")
-                page.goto("https://eternalzero.cloud/login")
-                
-                # 操作前检查
                 handle_popups_and_ads(page)
+                page.goto("https://eternalzero.cloud/login")
                 
                 time.sleep(2)
                 page.screenshot(path="login_debug.png", full_page=True)
                 send_telegram("页面已加载，当前状态截图:", "login_debug.png")
                 
-                # 操作前检查
                 handle_popups_and_ads(page)
                 page.fill("input#email", EMAIL)
                 page.fill("input#password", PASSWORD)
@@ -90,11 +86,9 @@ def run_automation():
                 # 2. 访问并确保跳转到目标页面
                 print(f"跳转到目标页面: {target_url}")
                 for _ in range(3):
-                    # 操作前检查
                     handle_popups_and_ads(page)
                     page.goto(target_url)
                     time.sleep(5)
-                    # 校验 Host/URL
                     if page.url != target_url:
                         print(f"当前 URL 为 {page.url}，与目标不符，重新尝试访问...")
                         continue
@@ -107,9 +101,8 @@ def run_automation():
                 # 4. 人机验证检测
                 if page.locator("iframe[data-hcaptcha-widget-id]").count() > 0:
                     print("检测到 hCaptcha，开始实时监控验证过程...")
+                    handle_popups_and_ads(page)
                     try:
-                        # 操作前检查
-                        handle_popups_and_ads(page)
                         page.frame_locator("iframe[data-hcaptcha-widget-id]").locator("#checkbox").click(force=True)
                     except: print("尝试触发交互失败，继续等待插件自动识别...")
 
@@ -152,7 +145,6 @@ def run_automation():
                     print("检测到加载动画，继续等待...")
                 
                 print("执行续费...")
-                # 操作前检查
                 handle_popups_and_ads(page)
                 
                 # 方案：深度模拟点击
