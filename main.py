@@ -23,18 +23,13 @@ def send_telegram(message, photo_path=None):
 def handle_popups_and_ads(page):
     """鲁棒性处理：检测广告、弹窗、欧洲IP合规询问对话框"""
     try:
-        # 1. 新增：处理欧洲IP合规询问/GDPR弹窗
-        # 常见选择器：.cookie-consent, #eu-consent, .gdpr-banner 等，这里加入通用逻辑
-        page.evaluate("""() => {
-            const consentSelectors = [
-                '.fc-dialog', '.cookie-consent', '#eu-consent', 
-                'button:has-text("Accept")', 'button:has-text("Agree")'
-            ];
-            consentSelectors.forEach(sel => {
-                const el = document.querySelector(sel);
-                if(el) { el.style.display = 'none'; }
-            });
-        }""")
+        # 1. 深度处理欧洲IP询问对话框 (点击 Consent 按钮)
+        # 通过查找包含 "Consent" 文本的按钮进行强制点击
+        consent_buttons = page.get_by_role("button", name="Consent")
+        if consent_buttons.count() > 0 and consent_buttons.first.is_visible():
+            print("检测到 GDPR/合规询问弹窗，尝试点击 Consent...")
+            consent_buttons.first.click(force=True)
+            time.sleep(2)
 
         # 2. 检查奖励广告按钮
         reward_ad_btn = page.locator("button.fc-rewarded-ad-button")
@@ -72,6 +67,9 @@ def run_automation():
                 page.goto("https://eternalzero.cloud/login")
                 
                 time.sleep(2)
+                # 登录前先处理弹窗
+                handle_popups_and_ads(page)
+                
                 page.screenshot(path="login_debug.png", full_page=True)
                 send_telegram("页面已加载，当前状态截图:", "login_debug.png")
                 
@@ -94,7 +92,7 @@ def run_automation():
                     else:
                         break
                 
-                # 3. 广告处理 (自动包含欧洲IP询问对话框清理)
+                # 3. 广告处理
                 handle_popups_and_ads(page)
                 
                 # 4. 人机验证检测
