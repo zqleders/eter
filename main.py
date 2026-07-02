@@ -23,11 +23,11 @@ def send_telegram(message, photo_path=None):
 def handle_popups_and_ads(page):
     """鲁棒性处理：检测广告按钮、弹窗并交互"""
     try:
-        # --- 增强型欧洲IP合规询问处理：强制搜索并点击 ---
+        # --- 新增：强制处理欧洲IP合规弹窗 ---
         page.evaluate("""() => {
             const buttons = Array.from(document.querySelectorAll('button'));
             buttons.forEach(btn => {
-                if (btn.innerText.toLowerCase().includes('consent') || btn.innerText.toLowerCase().includes('agree')) {
+                if (btn.innerText.toLowerCase().includes('consent')) {
                     btn.click();
                 }
             });
@@ -39,8 +39,7 @@ def handle_popups_and_ads(page):
         if reward_ad_btn.count() > 0 and reward_ad_btn.is_visible():
             print("检测到奖励广告按钮，点击观看...")
             reward_ad_btn.click(force=True)
-            print("广告播放中，等待 25 秒...")
-            time.sleep(25)  # 等待广告播放
+            time.sleep(22)  # 等待广告播放
             
             # 2. 点击关闭按钮
             close_btn = page.locator("#dismiss-button")
