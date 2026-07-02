@@ -2,7 +2,7 @@ import os
 import time
 import requests
 from playwright.sync_api import sync_playwright
-from browser import BrowserManager 
+from browser import BrowserManager  
 
 # 获取环境配置
 EMAIL = os.environ.get("EMAIL")
@@ -23,8 +23,6 @@ def send_telegram(message, photo_path=None):
 def run_automation():
     page = None
     with sync_playwright() as p:
-        # 注意：此处确保 BrowserManager 能正确加载插件目录
-        # 如果 BrowserManager 内部没有处理插件，你需要在这里传入 args 启动
         with BrowserManager(p) as context:
             page = context.new_page()
             page.set_viewport_size({"width": 1920, "height": 1080})
@@ -43,12 +41,10 @@ def run_automation():
                 print("访问 Info 页面...")
                 page.goto("https://eternalzero.cloud/servers/5541/info")
                 time.sleep(5)
-
-                # 3. 强制页面刷新一次，有时能触发插件重新挂载到 DOM
-                page.reload()
+                page.reload() # 强制刷新确保插件捕获 iframe
                 time.sleep(3)
 
-                # 4. 清理广告
+                # 3. 清理广告
                 page.evaluate("""() => {
                     const selectors = ['button.fc-cta-consent', 'button.fc-rewarded-ad-button', '#dismiss-button-element', 'ins.adsbygoogle', 'iframe[src*="ads"]', '.modal-backdrop'];
                     selectors.forEach(sel => {
@@ -56,11 +52,15 @@ def run_automation():
                     });
                 }""")
                 
-                # 5. 人机验证检测与处理
-                # 如果插件工作，它会接管 h-captcha 的 iframe。
-                # 如果插件没工作，我们需要确保 iframe 加载完成
-                if page.locator("iframe[src*='hcaptcha']").count() > 0:
-                    print("检测到 hCaptcha 容器...")
+                # 4. 人机验证检测与处理 (增强版)
+                captcha_frame = page.frame_locator("iframe[src*='hcaptcha']")
+                if captcha_frame.count() > 0:
+                    print("检测到 hCaptcha 容器，尝试唤醒插件...")
+                    try:
+                        # 强制对焦 iframe 内部
+                        captcha_frame.locator("body").click(timeout=5000)
+                    except: 
+                        print("无法直接交互，跳过强制唤醒")
                     
                     print("开始实时监控验证过程...")
                     verified = False
@@ -70,23 +70,32 @@ def run_automation():
                         page.screenshot(path=screenshot_name, full_page=True)
                         send_telegram(f"监控中...验证码处理状态: { (i+1)*10 }秒", screenshot_name)
                         
-                        # 核心判定：如果 hcaptcha 容器消失或变为成功状态
+                        # 检测方式1：容器消失
                         if page.locator("iframe[src*='hcaptcha']").count() == 0:
                             print("✅ 验证码已通过！")
                             verified = True
                             break
+                        
+                        # 检测方式2：通过 Response 注入判断
+                        try:
+                            response = page.evaluate("document.querySelector('[name=h-captcha-response]')?.value")
+                            if response and len(response) > 10:
+                                print("✅ 检测到已注入 Response，验证通过！")
+                                verified = True
+                                break
+                        except: pass
                     
                     if not verified:
                         raise Exception("❌ 超时：验证码在 180 秒内未通过。")
                 
-                # 6. 续费
-                print("执行续费...")
+                # 5. 执行续费
+                print("准备执行续费...")
                 page.wait_for_selector("#renew-button", state="visible", timeout=30000)
                 page.locator("#renew-button").click(force=True)
 
                 time.sleep(5)
                 page.screenshot(path="final.png", full_page=True)
-                send_telegram("流程结束，续费成功。", "final.png")
+                send_telegram("✅ 流程结束，续费成功。", "final.png")
                     
             except Exception as e:
                 error_msg = f"任务执行出错: {str(e)}"
