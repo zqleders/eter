@@ -23,12 +23,16 @@ def send_telegram(message, photo_path=None):
 def handle_popups_and_ads(page):
     """鲁棒性处理：检测广告按钮、弹窗并交互"""
     try:
-        # --- 新增功能：处理欧洲IP合规询问对话框 ---
-        consent_btn = page.get_by_role("button", name="Consent")
-        if consent_btn.count() > 0 and consent_btn.first.is_visible():
-            print("检测到合规询问弹窗，点击 Consent...")
-            consent_btn.first.click(force=True)
-            time.sleep(2)
+        # --- 增强型欧洲IP合规询问处理：强制搜索并点击 ---
+        page.evaluate("""() => {
+            const buttons = Array.from(document.querySelectorAll('button'));
+            buttons.forEach(btn => {
+                if (btn.innerText.toLowerCase().includes('consent') || btn.innerText.toLowerCase().includes('agree')) {
+                    btn.click();
+                }
+            });
+        }""")
+        time.sleep(1)
 
         # 1. 检查奖励广告按钮
         reward_ad_btn = page.locator("button.fc-rewarded-ad-button")
