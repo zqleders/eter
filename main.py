@@ -23,8 +23,6 @@ def send_telegram(message, photo_path=None):
 def run_automation():
     page = None
     with sync_playwright() as p:
-        # 注意：此处确保 BrowserManager 能正确加载插件目录
-        # 如果 BrowserManager 内部没有处理插件，你需要在这里传入 args 启动
         with BrowserManager(p) as context:
             page = context.new_page()
             page.set_viewport_size({"width": 1920, "height": 1080})
@@ -57,24 +55,36 @@ def run_automation():
                 }""")
                 
                 # 5. 人机验证检测与处理
-                # 如果插件工作，它会接管 h-captcha 的 iframe。
-                # 如果插件没工作，我们需要确保 iframe 加载完成
                 if page.locator("iframe[src*='hcaptcha']").count() > 0:
                     print("检测到 hCaptcha 容器...")
-                    
                     print("开始实时监控验证过程...")
                     verified = False
-                    for i in range(18): 
-                        time.sleep(10)
-                        screenshot_name = f"monitor_{i}.png"
-                        page.screenshot(path=screenshot_name, full_page=True)
-                        send_telegram(f"监控中...验证码处理状态: { (i+1)*10 }秒", screenshot_name)
+                    
+                    # 循环检测 (最多 180 秒)
+                    for i in range(36): 
+                        time.sleep(5) 
                         
-                        # 核心判定：如果 hcaptcha 容器消失或变为成功状态
-                        if page.locator("iframe[src*='hcaptcha']").count() == 0:
-                            print("✅ 验证码已通过！")
-                            verified = True
-                            break
+                        try:
+                            # 方式一：检测打勾状态 (aria-checked)
+                            captcha_frame = page.frame_locator("iframe[src*='hcaptcha']")
+                            is_checked = captcha_frame.locator("#checkbox, .checkbox-checked").get_attribute("aria-checked") == "true"
+                            
+                            # 方式二：检测 Response 注入
+                            response = page.evaluate("document.querySelector('[name=h-captcha-response]')?.value")
+                            has_response = response and len(response) > 10
+                            
+                            if is_checked or has_response:
+                                print("✅ 检测到验证已通过，立即执行续费！")
+                                verified = True
+                                break
+                        except Exception:
+                            pass
+
+                        # 状态监控截图
+                        if i % 2 == 0:
+                            screenshot_name = f"monitor_{i}.png"
+                            page.screenshot(path=screenshot_name, full_page=True)
+                            send_telegram(f"监控中...验证码处理状态: { (i+1)*5 }秒", screenshot_name)
                     
                     if not verified:
                         raise Exception("❌ 超时：验证码在 180 秒内未通过。")
