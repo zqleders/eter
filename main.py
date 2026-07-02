@@ -23,7 +23,7 @@ def send_telegram(message, photo_path=None):
 def handle_popups_and_ads(page):
     """鲁棒性处理：检测广告按钮、弹窗并交互"""
     try:
-        # 1. 新增：处理合规对话框
+        # 1. 强制处理合规对话框
         page.evaluate("""() => {
             document.querySelectorAll('button').forEach(btn => {
                 const text = btn.innerText.toLowerCase();
@@ -33,14 +33,20 @@ def handle_popups_and_ads(page):
             });
         }""")
         
-        # 2. 检查奖励广告按钮
+        # 2. 检查并处理奖励广告按钮 (优化定位)
         reward_ad_btn = page.locator("button.fc-rewarded-ad-button")
         if reward_ad_btn.count() > 0 and reward_ad_btn.is_visible():
-            print("检测到奖励广告按钮，点击观看...")
-            reward_ad_btn.click(force=True)
-            time.sleep(22)  # 等待广告播放
+            print("检测到奖励广告按钮，尝试物理坐标点击...")
+            box = reward_ad_btn.bounding_box()
+            if box:
+                # 移动并点击中心坐标，避开任何可能存在的覆盖层
+                page.mouse.move(box["x"] + box["width"]/2, box["y"] + box["height"]/2)
+                page.mouse.click(box["x"] + box["width"]/2, box["y"] + box["height"]/2)
             
-            # 3. 点击关闭按钮
+            print("广告播放中，等待 22 秒...")
+            time.sleep(22)
+            
+            # 3. 处理关闭按钮 (优化定位)
             close_btn = page.locator("#dismiss-button")
             if close_btn.count() > 0 and close_btn.is_visible():
                 print("广告播放结束，关闭广告...")
