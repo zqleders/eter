@@ -31,6 +31,12 @@ def run_automation():
                 # 1. 登录逻辑
                 print("访问登录页...")
                 page.goto("https://eternalzero.cloud/login")
+                
+                # 新增：页面加载后立即截图并发送，便于排查 Timeout 问题
+                time.sleep(2)
+                page.screenshot(path="login_debug.png", full_page=True)
+                send_telegram("页面已加载，当前状态截图:", "login_debug.png")
+                
                 page.fill("input#email", EMAIL)
                 page.fill("input#password", PASSWORD)
                 page.get_by_role("button", name="Sign in").click()
@@ -44,7 +50,7 @@ def run_automation():
                 page.reload()
                 time.sleep(3)
 
-                # 3. 清理广告 (不拦截网络请求，仅隐藏元素，绕过反广告插件检测)
+                # 3. 清理广告
                 page.evaluate("""() => {
                     const guard = document.getElementById('panel-guard-layer');
                     if(guard) { guard.style.display = 'none'; guard.style.visibility = 'hidden'; }
@@ -63,45 +69,34 @@ def run_automation():
                 
                 # 4. 人机验证检测与处理
                 if page.locator("iframe[src*='hcaptcha']").count() > 0:
-                    print("检测到 hCaptcha 容器，准备激活插件...")
-                    
-                    # 尝试强制点击验证框，触发插件拦截
+                    print("检测到 hCaptcha 容器...")
                     try:
                         captcha_frame = page.frame_locator("iframe[src*='hcaptcha']")
                         captcha_frame.locator("#checkbox").click(force=True, timeout=5000)
-                    except: print("手动触发交互失败，等待插件自动识别...")
+                    except: print("尝试触发交互失败，继续监控...")
 
-                    print("开始实时监控验证过程...")
                     verified = False
-                    
-                    # 轮询检测 (最多 180 秒)
                     for i in range(36): 
                         time.sleep(5) 
-                        
                         try:
-                            # 判定逻辑：检测 aria-checked 或 Response 注入
                             captcha_frame = page.frame_locator("iframe[src*='hcaptcha']")
                             is_checked = captcha_frame.locator("#checkbox, .checkbox-checked").get_attribute("aria-checked") == "true"
-                            
                             response = page.evaluate("document.querySelector('[name=h-captcha-response]')?.value")
                             has_response = response and len(response) > 10
                             
                             if is_checked or has_response:
-                                print("✅ 验证已通过，立即执行续费！")
+                                print("✅ 验证已通过！")
                                 verified = True
                                 break
                         except: pass
-
-                        # 截图监控
                         if i % 2 == 0:
-                            screenshot_name = f"monitor_{i}.png"
-                            page.screenshot(path=screenshot_name, full_page=True)
-                            send_telegram(f"监控中...验证码状态: { (i+1)*5 }秒", screenshot_name)
+                            page.screenshot(path="monitor.png", full_page=True)
+                            send_telegram(f"监控中...验证码处理状态: { (i+1)*5 }秒", "monitor.png")
                     
                     if not verified:
-                        raise Exception("❌ 超时：验证码未在规定时间内通过。")
+                        raise Exception("❌ 超时：验证码未在 180 秒内通过。")
                 
-                # 5. 续费 (通过验证后立刻执行)
+                # 5. 续费
                 print("执行续费...")
                 page.wait_for_selector("#renew-button", state="visible", timeout=30000)
                 page.locator("#renew-button").click(force=True)
