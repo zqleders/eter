@@ -23,11 +23,11 @@ def send_telegram(message, photo_path=None):
 def handle_popups_and_ads(page):
     """鲁棒性处理：检测广告按钮、弹窗并交互"""
     try:
-        # --- 新增：强制处理欧洲IP合规弹窗 ---
+        # --- 强制处理合规对话框 ---
         page.evaluate("""() => {
             const buttons = Array.from(document.querySelectorAll('button'));
             buttons.forEach(btn => {
-                if (btn.innerText.toLowerCase().includes('consent')) {
+                if (btn.innerText.toLowerCase().includes('consent') || btn.innerText.toLowerCase().includes('agree')) {
                     btn.click();
                 }
             });
@@ -48,11 +48,14 @@ def handle_popups_and_ads(page):
                 close_btn.click(force=True)
                 time.sleep(2)
 
-        # 3. 基础遮罩清理
+        # 3. 完整遮罩清理逻辑（已恢复至你确认有效时的状态）
         page.evaluate("""() => {
             const guard = document.getElementById('panel-guard-layer');
             if(guard) { guard.style.display = 'none'; }
-            document.querySelectorAll('.modal-backdrop, .fc-cta-consent').forEach(el => el.style.display = 'none');
+            // 修复：包含对所有模态框背景和相关合规性弹窗容器的清理
+            document.querySelectorAll('.modal-backdrop, .fc-cta-consent, .fc-dialog-container, #fc-consent-modal').forEach(el => el.style.display = 'none');
+            // 修复：移除 body 的滚动锁定，防止无法操作
+            document.body.style.overflow = 'auto';
         }""")
     except Exception as e:
         print(f"广告处理过程中的非致命错误: {e}")
