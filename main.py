@@ -2,7 +2,7 @@ import os
 import time
 import requests
 from playwright.sync_api import sync_playwright
-from browser import BrowserManager  # 使用你要求的 BrowserManager
+from browser import BrowserManager 
 
 # 获取环境配置
 EMAIL = os.environ.get("EMAIL")
@@ -23,12 +23,14 @@ def send_telegram(message, photo_path=None):
 def run_automation():
     page = None
     with sync_playwright() as p:
+        # 注意：此处确保 BrowserManager 能正确加载插件目录
+        # 如果 BrowserManager 内部没有处理插件，你需要在这里传入 args 启动
         with BrowserManager(p) as context:
             page = context.new_page()
             page.set_viewport_size({"width": 1920, "height": 1080})
             
             try:
-                # 1. 登录
+                # 1. 登录逻辑
                 print("访问登录页...")
                 page.goto("https://eternalzero.cloud/login")
                 page.fill("input#email", EMAIL)
@@ -42,7 +44,11 @@ def run_automation():
                 page.goto("https://eternalzero.cloud/servers/5541/info")
                 time.sleep(5)
 
-                # 3. 清理广告
+                # 3. 强制页面刷新一次，有时能触发插件重新挂载到 DOM
+                page.reload()
+                time.sleep(3)
+
+                # 4. 清理广告
                 page.evaluate("""() => {
                     const selectors = ['button.fc-cta-consent', 'button.fc-rewarded-ad-button', '#dismiss-button-element', 'ins.adsbygoogle', 'iframe[src*="ads"]', '.modal-backdrop'];
                     selectors.forEach(sel => {
@@ -50,33 +56,37 @@ def run_automation():
                     });
                 }""")
                 
-                # 4. 人机验证检测与处理
-                # 如果页面一加载就有验证码，先处理它，再点击 Renew
+                # 5. 人机验证检测与处理
+                # 如果插件工作，它会接管 h-captcha 的 iframe。
+                # 如果插件没工作，我们需要确保 iframe 加载完成
                 if page.locator("iframe[src*='hcaptcha']").count() > 0:
-                    print("检测到验证码，准备激活...")
-                    try:
-                        page.locator("iframe[src*='hcaptcha']").content_frame.locator("#checkbox").click()
-                    except: pass
+                    print("检测到 hCaptcha 容器...")
                     
                     print("开始实时监控验证过程...")
+                    verified = False
                     for i in range(18): 
                         time.sleep(10)
                         screenshot_name = f"monitor_{i}.png"
                         page.screenshot(path=screenshot_name, full_page=True)
-                        send_telegram(f"验证码处理中... ({ (i+1)*10 }秒)", screenshot_name)
+                        send_telegram(f"监控中...验证码处理状态: { (i+1)*10 }秒", screenshot_name)
                         
+                        # 核心判定：如果 hcaptcha 容器消失或变为成功状态
                         if page.locator("iframe[src*='hcaptcha']").count() == 0:
                             print("✅ 验证码已通过！")
+                            verified = True
                             break
+                    
+                    if not verified:
+                        raise Exception("❌ 超时：验证码在 180 秒内未通过。")
                 
-                # 5. 验证通过后，执行续费
-                print("验证已通过，执行续费...")
+                # 6. 续费
+                print("执行续费...")
                 page.wait_for_selector("#renew-button", state="visible", timeout=30000)
                 page.locator("#renew-button").click(force=True)
 
                 time.sleep(5)
                 page.screenshot(path="final.png", full_page=True)
-                send_telegram("流程结束，查看截图确认结果。", "final.png")
+                send_telegram("流程结束，续费成功。", "final.png")
                     
             except Exception as e:
                 error_msg = f"任务执行出错: {str(e)}"
