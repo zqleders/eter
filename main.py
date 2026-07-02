@@ -139,14 +139,20 @@ def run_automation():
                 button.wait_for(state="visible", timeout=30000)
                 box = button.bounding_box()
                 if box:
-                    # 移动到中心位置并点击
                     page.mouse.move(box["x"] + box["width"]/2, box["y"] + box["height"]/2)
                     page.mouse.down()
                     page.mouse.up()
-                    print("物理鼠标点击已触发。")
                 
-                # 增加点击后的二次确认
-                time.sleep(5)
+                # 点击后增加校验：如果验证码框重新出现（aria-checked 变回 false），说明续费被拒绝
+                time.sleep(3)
+                if page.locator("iframe[data-hcaptcha-widget-id]").count() > 0:
+                    try:
+                        is_reset = page.frame_locator("iframe[data-hcaptcha-widget-id]").locator("#checkbox").get_attribute("aria-checked") == "false"
+                        if is_reset:
+                            print("❌ 警告：点击后验证码被重置，续费请求被拒绝！")
+                            send_telegram("续费失败：验证码被重置，请检查账号状态。")
+                    except: pass
+
                 page.screenshot(path="final.png", full_page=True)
                 send_telegram("流程结束，请查看截图确认续费状态。", "final.png")
                     
