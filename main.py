@@ -135,18 +135,19 @@ def run_automation():
                 
                 print("执行续费...")
                 handle_popups_and_ads(page)
-                page.wait_for_selector("#renew-button", state="visible", timeout=30000)
                 
-                # 增加点击前的最后一次检查
-                if page.locator("#renew-button").is_enabled():
-                    page.locator("#renew-button").click(force=True)
-                else:
-                    print("警告：Renew 按钮不可点击，尝试强制点击...")
+                # 方案调整：优先使用 JS 直接执行 onclick 函数
+                try:
+                    print("尝试通过 JS 触发续费逻辑...")
+                    page.evaluate("renewServer()")
+                except Exception as e:
+                    print(f"JS 执行失败，回退到 UI 点击: {e}")
+                    page.wait_for_selector("#renew-button", state="visible", timeout=30000)
                     page.locator("#renew-button").click(force=True)
 
                 time.sleep(5)
                 page.screenshot(path="final.png", full_page=True)
-                send_telegram("流程结束，续费成功。", "final.png")
+                send_telegram("流程结束，请查看截图确认续费状态。", "final.png")
                     
             except Exception as e:
                 error_msg = f"任务执行出错: {str(e)}"
