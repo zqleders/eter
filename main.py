@@ -29,23 +29,24 @@ def send_telegram_with_blue_dot(message, page, x=0, y=0):
         requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto", data={'chat_id': TELEGRAM_CHAT_ID, 'caption': f"[LOG] {message}"}, files={'photo': photo})
 
 def force_remove_and_disable_ads(page):
+
+    """先定位广告DIV，找到后执行删除"""
     js = """
     (function() {
-        var targets = document.querySelectorAll('.fc-monetization-dialog-container, .fc-dialog-overlay');
-        if (targets.length === 0) return null;
-        targets.forEach(function(el) { el.remove(); });
-        var style = document.createElement('style');
-        style.innerHTML = '.fc-monetization-dialog-container, .fc-dialog-overlay { display: none !important; pointer-events: none !important; }';
-        document.head.appendChild(style);
-        return "已找到并清理了 " + targets.length + " 个广告元素";
+        var adDiv = document.querySelector('.fc-monetization-dialog-container');
+        if (adDiv) {
+            adDiv.remove();
+            return "已找到并删除广告 DIV: .fc-monetization-dialog-container";
+        } else {
+            return "未找到广告 DIV，无需清理";
+        }
     })()
     """
     try:
-        res = page.evaluate(js)
-        if res: print(f"[LOG] 去广告操作: {res}")
-        else: print("[LOG] 去广告操作: 未检测到广告，无需清理")
+        result = page.evaluate(js)
+        print(f"[LOG] 去广告操作: {result}")
     except Exception as e:
-        print(f"[LOG] 去广告脚本执行异常: {e}")
+        print(f"[LOG] 去广告操作执行异常: {e}")
 
 def human_like_click(page, target):
     force_remove_and_disable_ads(page)
