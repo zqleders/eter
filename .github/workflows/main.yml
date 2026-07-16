@@ -18,6 +18,7 @@ jobs:
           # 注意这里将 libasound2 修改为了 libasound2t64
           sudo apt-get install -y xvfb libx11-6 libxkbfile1 libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64
           pip install -r requirements.txt
+          pip install Pillow
           playwright install chromium
           
       - name: Setup Gost Proxy
