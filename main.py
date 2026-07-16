@@ -29,27 +29,28 @@ def send_telegram_with_blue_dot(message, page, x=0, y=0):
         requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto", data={'chat_id': TELEGRAM_CHAT_ID, 'caption': f"[LOG] {message}"}, files={'photo': photo})
 
 def force_remove_and_disable_ads(page):
-    """使用更鲁棒的 ARIA 属性特征进行定位并删除"""
+    """强力探测逻辑：不仅尝试删除，还会把页面上所有嫌疑 DIV 的特征打印出来供排查"""
     js = """
     (function() {
-        // 使用 aria-label 属性特征定位，这比类名更稳定
-        var adDiv = document.querySelector('[aria-label="View a Short ad"]');
+        // 1. 尝试直接通过已知特征寻找
+        var target = document.querySelector('[aria-label="View a Short ad"]') || document.querySelector('.fc-monetization-dialog-container');
         
-        // 如果上面找不到，作为备选，尝试查找包含特定按钮文本的容器
-        if (!adDiv) {
-            var buttons = Array.from(document.querySelectorAll('button'));
-            var targetBtn = buttons.find(b => b.innerText && b.innerText.includes('View a short ad'));
-            if (targetBtn) {
-                // 向上查找其祖先容器，直到找到弹窗的最外层
-                adDiv = targetBtn.closest('.fc-monetization-dialog-container') || targetBtn.closest('[role="dialog"]');
-            }
-        }
-
-        if (adDiv) {
-            adDiv.remove();
-            return "已通过属性定位并删除广告元素";
+        if (target) {
+            target.remove();
+            return "成功找到并删除了广告元素";
         } else {
-            return "未检测到广告元素";
+            // 2. 如果没找到，打印出页面中所有带有 dialog 或 monetization 的元素特征，方便排查
+            var suspects = document.querySelectorAll('div[class*="dialog"], div[class*="monetization"]');
+            var info = [];
+            suspects.forEach(function(el) {
+                info.push({
+                    className: el.className,
+                    ariaLabel: el.getAttribute('aria-label') || 'null',
+                    tagName: el.tagName
+                });
+            });
+            console.log("广告探测调试信息:", info);
+            return "未找到直接广告元素，已扫描页面所有嫌疑 DIV: " + JSON.stringify(info);
         }
     })()
     """
@@ -57,7 +58,7 @@ def force_remove_and_disable_ads(page):
         res = page.evaluate(js)
         print(f"[LOG] 去广告探测结果: {res}")
     except Exception as e:
-        print(f"[LOG] 去广告脚本执行异常: {e}")
+        print(f"[LOG] 去广告探测脚本异常: {e}")
 
 def human_like_click(page, target):
     force_remove_and_disable_ads(page)
