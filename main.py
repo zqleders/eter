@@ -84,9 +84,15 @@ def run_automation():
                 page.get_by_role("button", name="Sign in").click()
                 page.wait_for_load_state("networkidle")
                 time.sleep(3)
-                # --- 调整位置：先截图，再清理 ---
-                send_telegram_with_blue_dot("登录后即时截图", page)
+                
+                # --- 新增：登录后即时截图（去广告前） ---
+                send_telegram_with_blue_dot("登录成功即时截图（去广告前）", page)
+                
+                # --- 执行去广告 ---
                 force_remove_and_disable_ads(page)
+                
+                # --- 新增：去广告后截图 ---
+                send_telegram_with_blue_dot("登录成功已截图（去广告后）", page)
                 
                 # 2. 状态检查
                 print("[LOG] 步骤2: 访问服务器信息页")
@@ -104,7 +110,7 @@ def run_automation():
                 print("[LOG] 步骤3: 访问续期页")
                 page.goto(f"{BASE_URL}/service/renew")
                 page.wait_for_load_state("networkidle")
-                time.sleep(5)
+                time.sleep(3)
                 force_remove_and_disable_ads(page)
                 
                 # 4. 人机验证
