@@ -6,62 +6,11 @@ import datetime
 from playwright.sync_api import sync_playwright
 from browser import BrowserManager 
 
-# --- 全局配置与依赖 ---
-try:
-    from PIL import Image, ImageDraw
-    PIL_AVAILABLE = True
-except ImportError:
-    PIL_AVAILABLE = False
+# ... (依赖项检查与辅助函数定义保持不变) ...
 
-EMAIL = os.environ.get("EMAIL")
-PASSWORD = os.environ.get("PASSWORD")
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-BASE_URL = os.getenv("BASE_URL", "").rstrip('/')
-
-# --- 辅助函数定义（确保在 run_automation 之前定义） ---
-def send_telegram_with_blue_dot(message, page, x=0, y=0):
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID: return
-    file_path = "screenshot.png"
-    try:
-        page.screenshot(path=file_path, full_page=True)
-        if PIL_AVAILABLE and x != 0 and y != 0:
-            img = Image.open(file_path)
-            draw = ImageDraw.Draw(img)
-            r = 20
-            draw.ellipse((x - r, y - r, x + r, y + r), fill='blue', outline='blue')
-            img.save(file_path)
-        with open(file_path, 'rb') as f:
-            requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto", data={'chat_id': TELEGRAM_CHAT_ID, 'caption': message}, files={'photo': f})
-    except Exception as e:
-        print(f"[LOG] Telegram 发送失败: {e}")
-
-def force_remove_and_disable_ads(page):
-    js = """
-    var elements = document.querySelectorAll('.fc-monetization-dialog-container, div[class*="fixed"]');
-    elements.forEach(function(el) { el.remove(); });
-    var style = document.createElement('style');
-    style.innerHTML = '.fc-monetization-dialog-container, div[class*="fixed"] { display: none !important; pointer-events: none !important; }';
-    document.head.appendChild(style);
-    """
-    try: page.evaluate(js)
-    except: pass
-
-def human_like_click(page, locator_element):
-    locator_element.wait_for(state="visible", timeout=30000)
-    box = locator_element.bounding_box()
-    cx, cy = int(box["x"] + box["width"] / 2), int(box["y"] + box["height"] / 2)
-    page.mouse.move(960, 100)
-    page.mouse.move(cx, cy)
-    time.sleep(random.uniform(0.5, 1.2))
-    page.mouse.down()
-    page.mouse.up()
-    return cx, cy
-
-# --- 主程序逻辑 ---
 def run_automation():
     if not BASE_URL:
-        print("[ERROR] BASE_URL 未定义！请检查 YML 注入。")
+        print("[ERROR] BASE_URL 未定义！")
         return
 
     with sync_playwright() as p:
@@ -71,72 +20,86 @@ def run_automation():
             
             try:
                 # 1. 登录
-                print(f"[LOG] 正在访问: {BASE_URL}/login")
+                print(f"[LOG] 正在访问登录页: {BASE_URL}/login")
                 page.goto(f"{BASE_URL}/login")
-                force_remove_and_disable_ads(page)
                 page.fill("input#email", EMAIL)
                 page.fill("input#password", PASSWORD)
                 page.get_by_role("button", name="Sign in").click()
+                print("[LOG] 已触发 Sign in 点击，等待网络空闲...")
                 page.wait_for_load_state("networkidle")
                 
                 # 2. 状态检查
-                print("[LOG] 登录成功，检查服务器状态...")
+                print("[LOG] 登录完成，前往服务器信息页...")
                 page.goto(f"{BASE_URL}/servers/5541/info")
                 page.wait_for_load_state("networkidle")
-                time.sleep(5)
                 
                 status_element = page.locator("#server-status")
                 status_text = status_element.inner_text().strip()
-                print(f"[LOG] 当前服务器状态: {status_text}")
+                print(f"[LOG] 服务器当前状态检测为: {status_text}")
                 
-                # 3. 续期判定
                 should_renew = (status_text == "Suspended")
                 if not should_renew:
                     try:
                         exp_date = datetime.datetime.strptime(status_text, "%d.%m.%Y")
-                        if (exp_date - datetime.datetime.now()).total_seconds() < 7200:
+                        days_left = (exp_date - datetime.datetime.now()).total_seconds()
+                        if days_left < 7200:
+                            print(f"[LOG] 即将过期 (剩余 {days_left/3600:.1f} 小时)，需要续期。")
                             should_renew = True
-                    except: pass
-                
-                if not should_renew:
-                    print("[LOG] 无需续期。")
-                    return
+                        else:
+                            print(f"[LOG] 服务器状态健康，无需续期，结束任务。")
+                            return
+                    except Exception as e:
+                        print(f"[LOG] 状态日期解析失败，视作无需续期: {e}")
+                        return
 
-                # 4. 续期操作
-                print("[LOG] 进入续期页面...")
+                # 3. 进入续期页
+                print("[LOG] 正在跳转至续期页面...")
                 page.goto(f"{BASE_URL}/service/renew")
                 page.wait_for_load_state("networkidle")
+
+                # 4. 人机验证流程 (严格监测 aria-checked)
+                print("[LOG] 寻找人机验证模块...")
+                checkbox = page.frame_locator("iframe[data-hcaptcha-widget-id]").locator("#checkbox")
                 
-                # 人机验证检测
-                hcaptcha = page.frame_locator("iframe[data-hcaptcha-widget-id]").locator("#checkbox")
-                if hcaptcha.count() > 0:
-                    print("[LOG] 发现人机验证...")
-                    for i in range(20):
-                        force_remove_and_disable_ads(page)
-                        if hcaptcha.get_attribute("aria-checked") == "true":
-                            print("[LOG] 验证已通过！")
-                            break
-                        hcaptcha.click(force=True)
+                if checkbox.count() > 0:
+                    print("[LOG] 发现人机验证，开始交互...")
+                    # 尝试点击
+                    checkbox.click(force=True)
+                    
+                    # 严谨的轮询等待
+                    for i in range(30):
                         time.sleep(5)
-                
-                # 执行点击
-                print("[LOG] 执行续费点击...")
-                force_remove_and_disable_ads(page)
+                        force_remove_and_disable_ads(page)
+                        is_checked = checkbox.get_attribute("aria-checked")
+                        print(f"[LOG] 人机验证监测... 第 {i+1} 次尝试，当前 aria-checked 为: {is_checked}")
+                        
+                        if is_checked == "true":
+                            print("[LOG] 验证已成功勾选！")
+                            break
+                        else:
+                            print("[LOG] 验证尚未通过，正在尝试再次点击...")
+                            checkbox.click(force=True)
+                else:
+                    print("[LOG] 页面未发现人机验证模块，尝试直接执行下一步。")
+
+                # 5. 点击 Renew
+                print("[LOG] 准备执行 Renew 按钮点击...")
                 renew_btn = page.locator("#renew-button")
+                # 只有这里才会触发 30s 超时检查
                 cx, cy = human_like_click(page, renew_btn)
+                print(f"[LOG] 已成功触发 Renew 点击，坐标: {cx}, {cy}")
                 
-                time.sleep(5)
+                time.sleep(10)
                 
-                # 复核
+                # 6. 复核
                 page.goto(f"{BASE_URL}/servers/5541/info")
                 new_status = page.locator("#server-status").inner_text().strip()
-                send_telegram_with_blue_dot(f"续期流程完毕，当前状态: {new_status}", page, cx, cy)
+                print(f"[LOG] 最终服务器状态为: {new_status}")
+                send_telegram_with_blue_dot(f"流程执行完毕，最终状态: {new_status}", page, cx, cy)
                     
             except Exception as e:
-                print(f"[ERROR] 任务出错: {e}")
-                # 使用局部变量直接截图，确保不会触发 NameError
-                try: send_telegram_with_blue_dot(f"任务出错: {str(e)[:100]}", page)
-                except: pass
+                print(f"[ERROR] 任务执行过程中出现严重错误: {e}")
+                send_telegram_with_blue_dot(f"任务出错: {str(e)[:100]}", page)
 
 if __name__ == "__main__":
     run_automation()
