@@ -29,21 +29,33 @@ def send_telegram_with_blue_dot(message, page, x=0, y=0):
         requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto", data={'chat_id': TELEGRAM_CHAT_ID, 'caption': f"[LOG] {message}"}, files={'photo': photo})
 
 def force_remove_and_disable_ads(page):
-    """先定位再删除，并输出 LOG"""
+    """使用更鲁棒的 ARIA 属性特征进行定位并删除"""
     js = """
     (function() {
-        var adDiv = document.querySelector('.fc-monetization-dialog-container');
+        // 使用 aria-label 属性特征定位，这比类名更稳定
+        var adDiv = document.querySelector('[aria-label="View a Short ad"]');
+        
+        // 如果上面找不到，作为备选，尝试查找包含特定按钮文本的容器
+        if (!adDiv) {
+            var buttons = Array.from(document.querySelectorAll('button'));
+            var targetBtn = buttons.find(b => b.innerText && b.innerText.includes('View a short ad'));
+            if (targetBtn) {
+                // 向上查找其祖先容器，直到找到弹窗的最外层
+                adDiv = targetBtn.closest('.fc-monetization-dialog-container') || targetBtn.closest('[role="dialog"]');
+            }
+        }
+
         if (adDiv) {
             adDiv.remove();
-            return "已找到并删除广告 DIV: .fc-monetization-dialog-container";
+            return "已通过属性定位并删除广告元素";
         } else {
-            return "未检测到广告 DIV";
+            return "未检测到广告元素";
         }
     })()
     """
     try:
         res = page.evaluate(js)
-        print(f"[LOG] 去广告操作结果: {res}")
+        print(f"[LOG] 去广告探测结果: {res}")
     except Exception as e:
         print(f"[LOG] 去广告脚本执行异常: {e}")
 
@@ -84,14 +96,8 @@ def run_automation():
                 page.get_by_role("button", name="Sign in").click()
                 page.wait_for_load_state("networkidle")
                 time.sleep(3)
-                
-                # --- 新增：登录后即时截图（去广告前） ---
                 send_telegram_with_blue_dot("登录成功即时截图（去广告前）", page)
-                
-                # --- 执行去广告 ---
                 force_remove_and_disable_ads(page)
-                
-                # --- 新增：去广告后截图 ---
                 send_telegram_with_blue_dot("登录成功已截图（去广告后）", page)
                 
                 # 2. 状态检查
