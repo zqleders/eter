@@ -29,28 +29,19 @@ def send_telegram_with_blue_dot(message, page, x=0, y=0):
         requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto", data={'chat_id': TELEGRAM_CHAT_ID, 'caption': f"[LOG] {message}"}, files={'photo': photo})
 
 def force_remove_and_disable_ads(page):
-    """强力探测逻辑：不仅尝试删除，还会把页面上所有嫌疑 DIV 的特征打印出来供排查"""
     js = """
     (function() {
-        // 1. 尝试直接通过已知特征寻找
         var target = document.querySelector('[aria-label="View a Short ad"]') || document.querySelector('.fc-monetization-dialog-container');
-        
         if (target) {
             target.remove();
             return "成功找到并删除了广告元素";
         } else {
-            // 2. 如果没找到，打印出页面中所有带有 dialog 或 monetization 的元素特征，方便排查
             var suspects = document.querySelectorAll('div[class*="dialog"], div[class*="monetization"]');
             var info = [];
             suspects.forEach(function(el) {
-                info.push({
-                    className: el.className,
-                    ariaLabel: el.getAttribute('aria-label') || 'null',
-                    tagName: el.tagName
-                });
+                info.push({ className: el.className, ariaLabel: el.getAttribute('aria-label') || 'null' });
             });
-            console.log("广告探测调试信息:", info);
-            return "未找到直接广告元素，已扫描页面所有嫌疑 DIV: " + JSON.stringify(info);
+            return "未找到广告元素，页面扫描结果: " + JSON.stringify(info);
         }
     })()
     """
@@ -106,6 +97,7 @@ def run_automation():
                 page.goto(f"{BASE_URL}/servers/5541/info")
                 page.wait_for_load_state("networkidle")
                 time.sleep(3)
+                # --- 已补上探测操作 ---
                 force_remove_and_disable_ads(page)
                 status_text = page.locator("#server-status").inner_text().strip()
                 print(f"[LOG] 服务器状态: {status_text}")
