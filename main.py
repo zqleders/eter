@@ -29,7 +29,6 @@ def send_telegram_with_blue_dot(message, page, x=0, y=0):
         requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto", data={'chat_id': TELEGRAM_CHAT_ID, 'caption': f"[LOG] {message}"}, files={'photo': photo})
 
 def force_remove_and_disable_ads(page):
-    """仅针对特定广告类名进行清理"""
     js = """
     (function() {
         var targets = document.querySelectorAll('.fc-monetization-dialog-container, .fc-dialog-overlay');
@@ -38,13 +37,15 @@ def force_remove_and_disable_ads(page):
         var style = document.createElement('style');
         style.innerHTML = '.fc-monetization-dialog-container, .fc-dialog-overlay { display: none !important; pointer-events: none !important; }';
         document.head.appendChild(style);
-        return "清理了 " + targets.length + " 个广告相关元素";
+        return "已找到并清理了 " + targets.length + " 个广告元素";
     })()
     """
     try:
         res = page.evaluate(js)
         if res: print(f"[LOG] 去广告操作: {res}")
-    except: pass
+        else: print("[LOG] 去广告操作: 未检测到广告，无需清理")
+    except Exception as e:
+        print(f"[LOG] 去广告脚本执行异常: {e}")
 
 def human_like_click(page, target):
     force_remove_and_disable_ads(page)
@@ -74,17 +75,20 @@ def run_automation():
             try:
                 # 1. 登录
                 page.goto(f"{BASE_URL}/login")
+                time.sleep(3) # 新增页面缓冲
                 force_remove_and_disable_ads(page)
                 page.fill("input#email", EMAIL)
                 page.fill("input#password", PASSWORD)
                 page.get_by_role("button", name="Sign in").click()
                 page.wait_for_load_state("networkidle")
+                time.sleep(3) # 新增登录后缓冲
                 force_remove_and_disable_ads(page)
                 send_telegram_with_blue_dot("登录完成", page)
                 
                 # 2. 状态检查
                 page.goto(f"{BASE_URL}/servers/5541/info")
                 page.wait_for_load_state("networkidle")
+                time.sleep(3) # 新增跳转后缓冲
                 force_remove_and_disable_ads(page)
                 status_text = page.locator("#server-status").inner_text().strip()
                 print(f"[LOG] 服务器状态: {status_text}")
@@ -95,6 +99,7 @@ def run_automation():
                 # 3. 续期页面
                 page.goto(f"{BASE_URL}/service/renew")
                 page.wait_for_load_state("networkidle")
+                time.sleep(3) # 新增续期页缓冲
                 force_remove_and_disable_ads(page)
                 
                 # 4. 人机验证
@@ -123,6 +128,7 @@ def run_automation():
                 # 6. 复核
                 time.sleep(5)
                 page.goto(f"{BASE_URL}/servers/5541/info")
+                time.sleep(3)
                 force_remove_and_disable_ads(page)
                 final_status = page.locator("#server-status").inner_text().strip()
                 print(f"[LOG] 续期结束，最终状态: {final_status}")
