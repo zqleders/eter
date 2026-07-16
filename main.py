@@ -48,16 +48,7 @@ def force_remove_and_disable_ads(page):
 def run_automation():
     with sync_playwright() as p:
         with BrowserManager(p) as context:
-            # 强化环境伪装，清除所有自动化指纹
-            stealth_js = """
-            (() => {
-                Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-                window.navigator.chrome = { runtime: {} };
-            })();
-            """
-            context.add_init_script(stealth_js)
-            
-            page = context.pages[0] if len(context.pages) > 0 else context.new_page()
+            page = context.new_page()
             page.set_viewport_size({"width": 1920, "height": 1080})
             
             try:
@@ -74,19 +65,20 @@ def run_automation():
                 
                 # 3. 人机验证与自动续期循环
                 print("[LOG] 开始人机验证监测循环...")
-                # 假设 iframe 包含 hcaptcha 标识
-                hcaptcha_frame = page.frame_locator("iframe[data-hcaptcha-widget-id]")
-                checkbox = hcaptcha_frame.locator("#checkbox")
                 
-                if checkbox.count() > 0:
-                    print("[LOG] 发现人机验证，开始监测...")
-                    # 循环监测
-                    for i in range(30): # 限制循环次数防止死循环
+                # 循环监测
+                for i in range(30):
+                    # 假设 iframe 包含 hcaptcha 标识
+                    hcaptcha_frame = page.frame_locator("iframe[data-hcaptcha-widget-id]")
+                    checkbox = hcaptcha_frame.locator("#checkbox")
+                    
+                    if checkbox.count() > 0:
+                        print(f"[LOG] 发现人机验证，开始监测... 第{i+1}次")
                         force_remove_and_disable_ads(page)
                         
                         # 检查勾选状态
                         is_checked = checkbox.get_attribute("aria-checked")
-                        print(f"[LOG] 监测中... 第{i+1}次, 勾选状态: {is_checked}")
+                        print(f"[LOG] 监测中... 勾选状态: {is_checked}")
                         
                         # 每10秒截图
                         send_telegram_with_blue_dot(f"人机验证监测中 (状态: {is_checked})", page)
@@ -109,10 +101,13 @@ def run_automation():
                                 send_telegram_with_blue_dot("续期按钮已点击", page, int(cx), int(cy))
                                 print("[LOG] 点击成功")
                             break
-                        
                         time.sleep(10)
-                else:
-                    print("[LOG] 未发现人机验证框")
+                    else:
+                        print("[LOG] 未发现人机验证框，重新访问页面...")
+                        page.goto(f"{BASE_URL}/servers/5541/info")
+                        page.wait_for_load_state("domcontentloaded")
+                        force_remove_and_disable_ads(page)
+                        time.sleep(5)
                     
             except Exception as e:
                 print(f"[LOG] 发生错误: {e}")
