@@ -16,7 +16,7 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 BASE_URL = os.getenv("BASE_URL", "").rstrip('/')
 
-def send_telegram_with_blue_dot(message, driver, x, y):
+def send_telegram_with_blue_dot(message, driver, x=0, y=0):
     file_path = "screenshot.png"
     driver.screenshot(path=file_path, full_page=True)
     if PIL_AVAILABLE and x != 0 and y != 0:
@@ -30,26 +30,23 @@ def send_telegram_with_blue_dot(message, driver, x, y):
 
 def force_remove_and_disable_ads(page):
     js = """
-    var elements = document.querySelectorAll('.fc-monetization-dialog-container, div[class*="fixed"]');
-    var removed = [];
-    elements.forEach(function(el) {
-        removed.push(el.className);
-        el.remove();
-    });
-    var style = document.createElement('style');
-    style.innerHTML = '.fc-monetization-dialog-container, div[class*="fixed"] { display: none !important; pointer-events: none !important; }';
-    document.head.appendChild(style);
-    return removed;
+    var targets = document.querySelectorAll('.fc-monetization-dialog-container, div[class*="fixed"]');
+    if (targets.length > 0) {
+        targets.forEach(function(el) { el.remove(); });
+        var style = document.createElement('style');
+        style.innerHTML = '.fc-monetization-dialog-container, div[class*="fixed"] { display: none !important; pointer-events: none !important; }';
+        document.head.appendChild(style);
+        console.log('[LOG] 清理了 ' + targets.length + ' 个广告元素');
+    }
     """
     try:
-        removed_list = page.evaluate(js)
-        if removed_list: print(f"[LOG] 已销毁广告遮罩: {removed_list}")
+        page.evaluate(js)
     except Exception as e:
-        print(f"[LOG] 广告清理脚本错误: {e}")
+        print(f"[LOG] 广告清理跳过或执行无影响: {e}")
 
 def human_like_click(page, target):
-    """封装好的模拟真人点击逻辑"""
     box = target.bounding_box()
+    if not box: raise Exception("无法获取目标元素的 bounding_box")
     cx, cy = int(box['x'] + box['width'] / 2), int(box['y'] + box['height'] / 2)
     page.mouse.move(960, 100)
     page.mouse.move(cx, cy)
@@ -64,7 +61,7 @@ def run_automation():
             page.set_viewport_size({"width": 1920, "height": 1080})
             
             try:
-                # 登录
+                # 1. 登录
                 print("[LOG] 正在访问登录页...")
                 page.goto(f"{BASE_URL}/login")
                 force_remove_and_disable_ads(page)
@@ -72,8 +69,9 @@ def run_automation():
                 page.fill("input#password", PASSWORD)
                 page.get_by_role("button", name="Sign in").click()
                 page.wait_for_load_state("networkidle")
+                send_telegram_with_blue_dot("登录操作完成", page, 0, 0)
                 
-                # 状态检查
+                # 2. 状态检查
                 print("[LOG] 登录成功，正在检测服务器状态...")
                 page.goto(f"{BASE_URL}/servers/5541/info")
                 page.wait_for_load_state("networkidle")
@@ -81,8 +79,8 @@ def run_automation():
                 
                 status_text = page.locator("#server-status").inner_text().strip()
                 print(f"[LOG] 服务器状态: {status_text}")
+                send_telegram_with_blue_dot(f"当前状态检测: {status_text}", page, 0, 0)
                 
-                # 状态判定逻辑
                 should_renew = (status_text == "Suspended")
                 if not should_renew:
                     try:
@@ -92,44 +90,50 @@ def run_automation():
                     except: pass
                 
                 if not should_renew:
-                    print("[LOG] 无需续期操作，跳过。")
+                    print("[LOG] 无需续期操作，任务结束。")
                     return
 
-                # 续期操作
-                print("[LOG] 状态符合续期条件，前往续期页...")
+                # 3. 续期操作
+                print("[LOG] 状态符合条件，前往续期页...")
                 page.goto(f"{BASE_URL}/service/renew")
                 page.wait_for_load_state("networkidle")
                 
-                # 人机验证循环监测
+                # 4. 人机验证监测
+                print("[LOG] 正在监测人机验证框...")
                 checkbox = page.frame_locator("iframe[data-hcaptcha-widget-id]").locator("#checkbox")
                 if checkbox.count() > 0:
-                    print("[LOG] 发现人机验证，开始处理...")
                     checkbox.click(force=True)
                     for i in range(20):
                         time.sleep(5)
                         force_remove_and_disable_ads(page)
                         is_checked = checkbox.get_attribute("aria-checked")
-                        print(f"[LOG] 人机验证监测... 当前 aria-checked: {is_checked}")
+                        print(f"[LOG] 人机验证检测中，状态: {is_checked}")
                         if is_checked == "true":
-                            print("[LOG] 人机验证完成。")
+                            print("[LOG] 人机验证通过。")
+                            send_telegram_with_blue_dot("人机验证已通过", page, 0, 0)
                             break
                         checkbox.click(force=True)
                 
-                # 点击 Renew
-                print("[LOG] 执行 Renew 点击操作...")
-                force_remove_and_disable_ads(page)
+                # 5. 续期按钮点击
+                print("[LOG] 等待 Renew 按钮可见...")
                 renew_btn = page.locator("#renew-button")
-                cx, cy = human_like_click(page, renew_btn)
+                renew_btn.wait_for(state="visible", timeout=30000)
                 
-                # 最终状态确认
+                cx, cy = human_like_click(page, renew_btn)
+                print(f"[LOG] 已点击 Renew 按钮，坐标: {cx}, {cy}")
+                send_telegram_with_blue_dot("续期按钮已点击", page, cx, cy)
+                
+                # 6. 最终状态确认
                 time.sleep(5)
                 page.goto(f"{BASE_URL}/servers/5541/info")
                 final_status = page.locator("#server-status").inner_text().strip()
                 print(f"[LOG] 续期结束，最终状态: {final_status}")
-                send_telegram_with_blue_dot(f"续期操作完成，最终状态: {final_status}", page, cx, cy)
+                send_telegram_with_blue_dot(f"续期操作完成，最终状态: {final_status}", page, 0, 0)
                     
             except Exception as e:
                 print(f"[LOG] 流程出错: {e}")
+                try: send_telegram_with_blue_dot(f"流程出错: {str(e)[:100]}", page, 0, 0)
+                except: pass
 
 if __name__ == "__main__":
     run_automation()
