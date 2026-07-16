@@ -73,21 +73,15 @@ def run_automation():
                         start_btn = page.locator('//*[@id="power-controls"]/button[1]')
                         start_btn.scroll_into_view_if_needed()
                         box = start_btn.bounding_box()
-                    if box:
-                            # 1. 模拟移动轨迹 (保持原有的真人视觉效果)
+                        if box:
                             page.mouse.move(960, 100)
                             time.sleep(random.uniform(0.3, 0.6))
                             cx = box['x'] + box['width'] / 2
                             cy = box['y'] + box['height'] / 2
                             page.mouse.move(cx, cy)
                             time.sleep(random.uniform(0.5, 1.2))
-                            
-                            # 2. 核心修改：使用 dispatch_event 绕过遮挡强制触发点击
                             start_btn.dispatch_event("click")
-                            
-                            # 3. 记录日志并截图
-                            send_telegram_with_blue_dot("Start按钮已强制点击(dispatch)", page, int(cx), int(cy))
-                            print("[LOG] 强制点击成功")
+                            send_telegram_with_blue_dot("Start按钮已点击", page, int(cx), int(cy))
                         page.goto(f"{BASE_URL}/servers/5541/info")
                         page.wait_for_load_state("domcontentloaded")
 
