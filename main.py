@@ -38,9 +38,7 @@ def force_remove_and_disable_ads(page):
         } else {
             var suspects = document.querySelectorAll('div[class*="dialog"], div[class*="monetization"]');
             var info = [];
-            suspects.forEach(function(el) {
-                info.push({ className: el.className, ariaLabel: el.getAttribute('aria-label') || 'null' });
-            });
+            suspects.forEach(function(el) { info.push({ className: el.className, ariaLabel: el.getAttribute('aria-label') || 'null' }); });
             return "未找到广告元素，页面扫描结果: " + JSON.stringify(info);
         }
     })()
@@ -86,7 +84,7 @@ def run_automation():
                 page.fill("input#password", PASSWORD)
                 print("[LOG] 步骤1: 点击登录按钮")
                 page.get_by_role("button", name="Sign in").click()
-                page.wait_for_load_state("networkidle")
+                page.wait_for_load_state("domcontentloaded") # 替换 networkidle
                 time.sleep(3)
                 send_telegram_with_blue_dot("登录成功即时截图（去广告前）", page)
                 force_remove_and_disable_ads(page)
@@ -95,9 +93,9 @@ def run_automation():
                 # 2. 状态检查
                 print("[LOG] 步骤2: 访问服务器信息页")
                 page.goto(f"{BASE_URL}/servers/5541/info")
-                page.wait_for_load_state("networkidle")
-                time.sleep(3)
-                # --- 已补上探测操作 ---
+                # 改用 domcontentloaded 并不做任何等待，直接探测
+                page.wait_for_load_state("domcontentloaded")
+                time.sleep(2) 
                 force_remove_and_disable_ads(page)
                 status_text = page.locator("#server-status").inner_text().strip()
                 print(f"[LOG] 服务器状态: {status_text}")
@@ -108,7 +106,7 @@ def run_automation():
                 # 3. 续期页面
                 print("[LOG] 步骤3: 访问续期页")
                 page.goto(f"{BASE_URL}/service/renew")
-                page.wait_for_load_state("networkidle")
+                page.wait_for_load_state("domcontentloaded")
                 time.sleep(3)
                 force_remove_and_disable_ads(page)
                 
@@ -139,6 +137,7 @@ def run_automation():
                 # 6. 复核
                 time.sleep(5)
                 page.goto(f"{BASE_URL}/servers/5541/info")
+                page.wait_for_load_state("domcontentloaded")
                 time.sleep(3)
                 force_remove_and_disable_ads(page)
                 final_status = page.locator("#server-status").inner_text().strip()
