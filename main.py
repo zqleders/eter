@@ -84,22 +84,20 @@ def run_automation():
                 page.fill("input#password", PASSWORD)
                 print("[LOG] 步骤1: 点击登录按钮")
                 page.get_by_role("button", name="Sign in").click()
-                page.wait_for_load_state("domcontentloaded") # 替换 networkidle
+                page.wait_for_load_state("domcontentloaded")
                 time.sleep(3)
-                send_telegram_with_blue_dot("登录成功即时截图（去广告前）", page)
+                send_telegram_with_blue_dot("步骤1: 登录成功后截图", page)
                 force_remove_and_disable_ads(page)
-                send_telegram_with_blue_dot("登录成功已截图（去广告后）", page)
                 
                 # 2. 状态检查
                 print("[LOG] 步骤2: 访问服务器信息页")
                 page.goto(f"{BASE_URL}/servers/5541/info")
-                # 改用 domcontentloaded 并不做任何等待，直接探测
                 page.wait_for_load_state("domcontentloaded")
-                time.sleep(2) 
+                time.sleep(3)
                 force_remove_and_disable_ads(page)
                 status_text = page.locator("#server-status").inner_text().strip()
                 print(f"[LOG] 服务器状态: {status_text}")
-                send_telegram_with_blue_dot(f"当前状态: {status_text}", page)
+                send_telegram_with_blue_dot(f"步骤2: 状态页截图({status_text})", page)
                 
                 if status_text != "Suspended": return
 
@@ -109,6 +107,7 @@ def run_automation():
                 page.wait_for_load_state("domcontentloaded")
                 time.sleep(3)
                 force_remove_and_disable_ads(page)
+                send_telegram_with_blue_dot("步骤3: 续期页截图", page)
                 
                 # 4. 人机验证
                 print("[LOG] 步骤4: 监测人机验证")
@@ -123,16 +122,18 @@ def run_automation():
                         print(f"[LOG] 人机验证检测中 (第{i+1}次): {status}")
                         if status == "true":
                             print("[LOG] 人机验证通过")
-                            send_telegram_with_blue_dot("人机验证通过", page)
+                            send_telegram_with_blue_dot("步骤4: 人机验证通过截图", page)
                             break
                         checkbox.click(force=True)
                 
                 # 5. 执行续期
                 print("[LOG] 步骤5: 执行续期点击")
                 renew_btn = page.locator("#renew-button")
+                # 增加点击前即时截图
+                send_telegram_with_blue_dot("步骤5: 尝试点击续期前截图", page)
                 cx, cy = execute_with_ad_cleanup(page, human_like_click, renew_btn)
                 print(f"[LOG] Renew 按钮已点击，坐标: {cx}, {cy}")
-                send_telegram_with_blue_dot("续期按钮已点击", page, cx, cy)
+                send_telegram_with_blue_dot("步骤5: 续期按钮点击后截图", page, cx, cy)
                 
                 # 6. 复核
                 time.sleep(5)
@@ -142,7 +143,7 @@ def run_automation():
                 force_remove_and_disable_ads(page)
                 final_status = page.locator("#server-status").inner_text().strip()
                 print(f"[LOG] 续期最终状态: {final_status}")
-                send_telegram_with_blue_dot(f"续期结束，状态: {final_status}", page)
+                send_telegram_with_blue_dot(f"步骤6: 续期结束截图({final_status})", page)
                     
             except Exception as e:
                 print(f"[LOG] 流程出错: {e}")
