@@ -58,10 +58,12 @@ def run_automation():
                 page.fill("input#password", PASSWORD)
                 page.get_by_role("button", name="Sign in").click()
                 page.wait_for_load_state("domcontentloaded")
+                send_telegram_with_blue_dot("登录操作已执行", page)
                 
                 # 2. 进入信息页
                 page.goto(f"{BASE_URL}/servers/5541/info")
                 page.wait_for_load_state("domcontentloaded")
+                send_telegram_with_blue_dot("已跳转至信息页", page)
                 
                 # 3. 人机验证与自动续期循环
                 print("[LOG] 开始人机验证监测循环...")
@@ -107,10 +109,14 @@ def run_automation():
                         page.goto(f"{BASE_URL}/servers/5541/info")
                         page.wait_for_load_state("domcontentloaded")
                         force_remove_and_disable_ads(page)
+                        send_telegram_with_blue_dot("未发现人机框，执行页面重刷新", page)
                         time.sleep(5)
                     
             except Exception as e:
                 print(f"[LOG] 发生错误: {e}")
+                # 报错时也截图记录现场
+                try: send_telegram_with_blue_dot(f"自动化执行异常: {str(e)}", page)
+                except: pass
 
 if __name__ == "__main__":
     run_automation()
