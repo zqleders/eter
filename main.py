@@ -58,16 +58,34 @@ def run_automation():
                 page.fill("input#password", PASSWORD)
                 page.get_by_role("button", name="Sign in").click()
                 page.wait_for_load_state("domcontentloaded")
+                print("[LOG] 成功登录")
                 
                 # 2. 进入信息页
                 page.goto(f"{BASE_URL}/servers/5541/info")
                 page.wait_for_load_state("domcontentloaded")
+                print("[LOG] 跳转信息页")
                 
-                # --- 新增：状态判断逻辑 ---
+                # --- 新增：离线启动逻辑 ---
                 status_element = page.locator("#server-status")
                 status_text = status_element.inner_text().strip()
                 print(f"[LOG] 当前服务器状态: {status_text}")
                 
+                if status_text == "Offline":
+                    print("[LOG] 检测到状态 Offline，执行启动流程...")
+                    page.goto(f"{BASE_URL}/servers/5541/console")
+                    page.wait_for_load_state("domcontentloaded")
+                    force_remove_and_disable_ads(page)
+                    start_btn = page.locator('//*[@id="power-controls"]/button[1]')
+                    if start_btn.count() > 0:
+                        start_btn.dispatch_event("click")
+                        send_telegram_with_blue_dot("Start按钮已点击", page)
+                    print("[LOG] Start按钮已点击")
+                    page.goto(f"{BASE_URL}/servers/5541/info")
+                    page.wait_for_load_state("domcontentloaded")
+                    # 重新获取状态以便进行后续判断
+                    status_text = page.locator("#server-status").inner_text().strip()
+
+                # --- 原有续期逻辑 ---
                 needs_renew = False
                 if status_text == "Suspended":
                     needs_renew = True
@@ -101,7 +119,7 @@ def run_automation():
                            print(f"[LOG] 监测中... 第{i+1}次, 勾选状态: {is_checked}")
                            
                            # 每10秒截图
-                           send_telegram_with_blue_dot(f"人机验证监测中 (状态: {is_checked})", page)
+                           send_telegram_with_blue_dot(f"人机验证监测中 第{i+1}次 (状态: {is_checked})", page)
                            
                            if is_checked == "true":
                                print("[LOG] 检测到验证通过，准备点击续期...")
@@ -111,7 +129,7 @@ def run_automation():
                                if box:
                                    page.mouse.click(box['x'] + box['width']/2, box['y'] + box['height']/2)
                                    send_telegram_with_blue_dot("续期按钮已点击", page, box['x'], box['y'])
-                                   print("[LOG] 点击成功")
+                                   print("[LOG] 续期按钮点击成功")
                                break
                            
                            time.sleep(10)
