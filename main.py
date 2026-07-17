@@ -140,7 +140,12 @@ def run_automation():
                            
                            time.sleep(10)
                     else:
-                        print("[LOG] 未发现人机验证框")
+                        print("[LOG] 未发现人机验证框，重新访问页面...")
+                        page.goto(f"{BASE_URL}/servers/5541/info")
+                        page.wait_for_load_state("domcontentloaded")
+                        time.sleep(5)
+                        force_remove_and_disable_ads(page)
+                        
                     
             except Exception as e:
                 print(f"[LOG] 发生错误: {e}")
