@@ -58,11 +58,11 @@ def run_automation():
                 page.fill("input#password", PASSWORD)
                 page.get_by_role("button", name="Sign in").click()
                 page.wait_for_load_state("domcontentloaded")
-                
+                print("[LOG] 已成功登录")
                 # 2. 进入信息页
                 page.goto(f"{BASE_URL}/servers/5541/info")
                 page.wait_for_load_state("domcontentloaded")
-                
+                print("[LOG] 跳转到信息页")
                 def check_and_start_server():
                     status_text = page.locator("#server-status").inner_text().strip()
                     if status_text == "Offline":
@@ -84,7 +84,7 @@ def run_automation():
                             send_telegram_with_blue_dot("Start按钮已点击", page, int(cx), int(cy))
                         page.goto(f"{BASE_URL}/servers/5541/info")
                         page.wait_for_load_state("domcontentloaded")
-
+                        print("[LOG] 已点击Start按钮")
                 # 初始检查
                 check_and_start_server()
                 
