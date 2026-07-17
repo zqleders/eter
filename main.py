@@ -82,11 +82,21 @@ def run_automation():
                 needs_renew = False
                 try:
                     time_str = page.locator("#rnw-ring-label").inner_text().strip()
+                    print(f"[LOG] 原始时间字符串: {time_str}")
+                    
                     if time_str == "Expired":
                         needs_renew = True
                     else:
-                        m, s = map(int, time_str.split(':'))
-                        total_seconds = m * 60 + s
+                        # 兼容处理：将 '11h 58m' 转换为秒
+                        total_seconds = 0
+                        if 'h' in time_str:
+                            hours = int(time_str.split('h')[0].strip())
+                            minutes = int(time_str.split('h')[1].replace('m', '').strip())
+                            total_seconds = hours * 3600 + minutes * 60
+                        elif ':' in time_str:
+                            m, s = map(int, time_str.split(':'))
+                            total_seconds = m * 60 + s
+                        
                         if 0 <= total_seconds <= 7200:
                             needs_renew = True
                 except Exception as e:
