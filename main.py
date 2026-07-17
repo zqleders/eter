@@ -63,6 +63,8 @@ def run_automation():
                 # 2. 进入信息页
                 page.goto(f"{BASE_URL}/servers/5541/info")
                 page.wait_for_load_state("domcontentloaded")
+                time.sleep(3)
+                force_remove_and_disable_ads(page)
                 print("[LOG] 跳转信息页")
                 
                 # --- 新增：离线启动逻辑 ---
@@ -74,6 +76,7 @@ def run_automation():
                     print("[LOG] 检测到状态 Offline，执行启动流程...")
                     page.goto(f"{BASE_URL}/servers/5541/console")
                     page.wait_for_load_state("domcontentloaded")
+                    time.sleep(3)
                     force_remove_and_disable_ads(page)
                     start_btn = page.locator('//*[@id="power-controls"]/button[1]')
                     if start_btn.count() > 0:
