@@ -115,6 +115,7 @@ def run_automation():
                     
                     if checkbox.count() > 0:
                         print("[LOG] 发现人机验证，开始监测...")
+                        force_remove_and_disable_ads(page)
                         # 循环监测
                         for i in range(30): # 限制循环次数防止死循环
                            # force_remove_and_disable_ads(page)
