@@ -118,7 +118,7 @@ def run_automation():
                         force_remove_and_disable_ads(page)
                         # 循环监测
                         for i in range(30): # 限制循环次数防止死循环
-                           # force_remove_and_disable_ads(page)
+                           force_remove_and_disable_ads(page)
                            
                            # 检查勾选状态
                            is_checked = checkbox.get_attribute("aria-checked")
