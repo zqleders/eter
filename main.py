@@ -85,30 +85,26 @@ def run_automation():
                     print("[LOG] Start按钮已点击")
                     page.goto(f"{BASE_URL}/servers/5541/info")
                     page.wait_for_load_state("domcontentloaded")
-                    # 重新获取状态以便进行后续判断
-                    status_text = page.locator("#server-status").inner_text().strip()
 
-                # --- 原有续期逻辑 (已修改为读取 rnw-ring-label) ---
+                # --- 续期逻辑 (独立判断) ---
                 needs_renew = False
-                if status_text == "Suspended":
-                    needs_renew = True
-                else:
-                    try:
-                        # 读取新的时间元素
-                        time_str = page.locator("#rnw-ring-label").inner_text().strip()
+                try:
+                    time_str = page.locator("#rnw-ring-label").inner_text().strip()
+                    if time_str == "Expired":
+                        needs_renew = True
+                    else:
                         m, s = map(int, time_str.split(':'))
                         total_seconds = m * 60 + s
-                        # 若剩余时间小于等于2小时(7200秒)，则续期
                         if 0 <= total_seconds <= 7200:
                             needs_renew = True
-                    except Exception as e:
-                        print(f"[LOG] 时间解析失败: {e}")
+                except Exception as e:
+                    print(f"[LOG] 续期状态解析失败: {e}")
 
                 if not needs_renew:
-                    print(f"[LOG] 服务器状态 {status_text} 无需续期，流程结束")
-                    send_telegram_with_blue_dot(f"服务器状态 {status_text}，无需续期", page)
+                    print(f"[LOG] 当前无需续期，流程结束")
+                    send_telegram_with_blue_dot(f"当前无需续期", page)
                 else:
-                    print(f"[LOG] 检测到状态 {status_text}，开始人机验证监测循环...")
+                    print(f"[LOG] 检测到需要续期，开始人机验证监测循环...")
                     # 3. 人机验证与自动续期循环
                     hcaptcha_frame = page.frame_locator("iframe[data-hcaptcha-widget-id]")
                     checkbox = hcaptcha_frame.locator("#checkbox")
