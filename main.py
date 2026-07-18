@@ -67,7 +67,74 @@ def run_automation():
                 force_remove_and_disable_ads(page)
                 print("[LOG] 跳转信息页")
                 
-                # --- 新增：离线启动逻辑 ---
+                # --- 续期逻辑 (逻辑前置) ---
+                needs_renew = False
+                try:
+                    time_str = page.locator("#rnw-ring-label").inner_text().strip()
+                    print(f"[LOG] 原始时间字符串: {time_str}")
+                    
+                    if time_str == "Expired":
+                        needs_renew = True
+                    else:
+                        # 兼容处理：将 '11h 58m' 转换为秒
+                        total_seconds = 0
+                        if 'h' in time_str:
+                            hours = int(time_str.split('h')[0].strip())
+                            minutes = int(time_str.split('h')[1].replace('m', '').strip())
+                            total_seconds = hours * 3600 + minutes * 60
+                        elif ':' in time_str:
+                            m, s = map(int, time_str.split(':'))
+                            total_seconds = m * 60 + s
+                        
+                        if 0 <= total_seconds <= 7200:
+                            needs_renew = True
+                except Exception as e:
+                    print(f"[LOG] 续期状态解析失败: {e}")
+
+                if not needs_renew:
+                    print(f"[LOG] eter当前无需续期")
+                    send_telegram_with_blue_dot(f"eter当前无需续期", page)
+                else:
+                    print(f"[LOG] 检测到需要续期，解除拦截并开始监测...")
+                    page.reload()         # 刷新以加载验证码脚本
+                    time.sleep(5)
+                    force_remove_and_disable_ads(page)
+                    
+                    hcaptcha_frame = page.frame_locator("iframe[data-hcaptcha-widget-id]")
+                    checkbox = hcaptcha_frame.locator("#checkbox")
+                    
+                    if checkbox.count() > 0:
+                        print("[LOG] 发现人机验证，开始监测...")
+                        force_remove_and_disable_ads(page)
+                        for i in range(30):
+                           force_remove_and_disable_ads(page)
+                           is_checked = checkbox.get_attribute("aria-checked")
+                           print(f"[LOG] 监测中... 第{i+1}次, 勾选状态: {is_checked}")
+                           send_telegram_with_blue_dot(f"人机验证监测中 第{i+1}次 (状态: {is_checked})", page)
+                           
+                           if is_checked == "true":
+                               print("[LOG] 检测到验证通过，准备点击续期...")
+                               time.sleep(2)
+                               renew_btn = page.locator("#renew-button")
+                               box = renew_btn.bounding_box()
+                               if box:
+                                   page.mouse.click(box['x'] + box['width']/2, box['y'] + box['height']/2)
+                                   send_telegram_with_blue_dot("eter续期按钮已点击", page, box['x'], box['y'])
+                                   print("[LOG] 续期按钮点击成功")
+                               break
+                           time.sleep(10)
+                    else:
+                        print("[LOG] 未发现人机验证框，重新访问页面...")
+                        page.goto(f"{BASE_URL}/servers/5541/info")
+                        page.wait_for_load_state("domcontentloaded")
+                        time.sleep(5)
+                        force_remove_and_disable_ads(page)
+
+                # --- 离线启动逻辑 (后续处理) ---
+                page.goto(f"{BASE_URL}/servers/5541/info")
+                page.wait_for_load_state("domcontentloaded")
+                time.sleep(3)
+                force_remove_and_disable_ads(page)
                 status_element = page.locator("#server-status")
                 status_text = status_element.inner_text().strip()
                 print(f"[LOG] 当前服务器状态: {status_text}")
@@ -81,67 +148,8 @@ def run_automation():
                     start_btn = page.locator('//*[@id="power-controls"]/button[1]')
                     if start_btn.count() > 0:
                         start_btn.dispatch_event("click")
-                        send_telegram_with_blue_dot("Start按钮已点击", page)
+                        send_telegram_with_blue_dot("eter Start按钮已点击", page)
                     print("[LOG] Start按钮已点击")
-                    page.goto(f"{BASE_URL}/servers/5541/info")
-                    page.wait_for_load_state("domcontentloaded")
-
-                # --- 续期逻辑 (独立判断) ---
-                needs_renew = False
-                try:
-                    time_str = page.locator("#rnw-ring-label").inner_text().strip()
-                    if time_str == "Expired":
-                        needs_renew = True
-                    else:
-                        m, s = map(int, time_str.split(':'))
-                        total_seconds = m * 60 + s
-                        if 0 <= total_seconds <= 7200:
-                            needs_renew = True
-                except Exception as e:
-                    print(f"[LOG] 续期状态解析失败: {e}")
-
-                if not needs_renew:
-                    print(f"[LOG] 当前无需续期，流程结束")
-                    send_telegram_with_blue_dot(f"当前无需续期", page)
-                else:
-                    print(f"[LOG] 检测到需要续期，开始人机验证监测循环...")
-                    # 3. 人机验证与自动续期循环
-                    hcaptcha_frame = page.frame_locator("iframe[data-hcaptcha-widget-id]")
-                    checkbox = hcaptcha_frame.locator("#checkbox")
-                    
-                    if checkbox.count() > 0:
-                        print("[LOG] 发现人机验证，开始监测...")
-                        force_remove_and_disable_ads(page)
-                        # 循环监测
-                        for i in range(30): # 限制循环次数防止死循环
-                           force_remove_and_disable_ads(page)
-                           
-                           # 检查勾选状态
-                           is_checked = checkbox.get_attribute("aria-checked")
-                           print(f"[LOG] 监测中... 第{i+1}次, 勾选状态: {is_checked}")
-                           
-                           # 每10秒截图
-                           send_telegram_with_blue_dot(f"人机验证监测中 第{i+1}次 (状态: {is_checked})", page)
-                           
-                           if is_checked == "true":
-                               print("[LOG] 检测到验证通过，准备点击续期...")
-                               time.sleep(2)
-                               renew_btn = page.locator("#renew-button")
-                               box = renew_btn.bounding_box()
-                               if box:
-                                   page.mouse.click(box['x'] + box['width']/2, box['y'] + box['height']/2)
-                                   send_telegram_with_blue_dot("续期按钮已点击", page, box['x'], box['y'])
-                                   print("[LOG] 续期按钮点击成功")
-                               break
-                           
-                           time.sleep(10)
-                    else:
-                        print("[LOG] 未发现人机验证框，重新访问页面...")
-                        page.goto(f"{BASE_URL}/servers/5541/info")
-                        page.wait_for_load_state("domcontentloaded")
-                        time.sleep(5)
-                        force_remove_and_disable_ads(page)
-                        
                     
             except Exception as e:
                 print(f"[LOG] 发生错误: {e}")
