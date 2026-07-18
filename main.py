@@ -103,8 +103,8 @@ def run_automation():
                     print(f"[LOG] 续期状态解析失败: {e}")
 
                 if not needs_renew:
-                    print(f"[LOG] 当前无需续期")
-                    send_telegram_with_blue_dot(f"当前无需续期", page)
+                    print(f"[LOG] eter当前无需续期")
+                    send_telegram_with_blue_dot(f"eter当前无需续期", page)
                 else:
                     print(f"[LOG] 检测到需要续期，解除拦截并开始监测...")
                     block_captcha = False # 解除拦截
@@ -131,7 +131,7 @@ def run_automation():
                                box = renew_btn.bounding_box()
                                if box:
                                    page.mouse.click(box['x'] + box['width']/2, box['y'] + box['height']/2)
-                                   send_telegram_with_blue_dot("续期按钮已点击", page, box['x'], box['y'])
+                                   send_telegram_with_blue_dot("eter续期按钮已点击", page, box['x'], box['y'])
                                    print("[LOG] 续期按钮点击成功")
                                break
                            time.sleep(10)
@@ -160,7 +160,7 @@ def run_automation():
                     start_btn = page.locator('//*[@id="power-controls"]/button[1]')
                     if start_btn.count() > 0:
                         start_btn.dispatch_event("click")
-                        send_telegram_with_blue_dot("Start按钮已点击", page)
+                        send_telegram_with_blue_dot("eter Start按钮已点击", page)
                     print("[LOG] Start按钮已点击")
                     
             except Exception as e:
