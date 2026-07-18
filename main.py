@@ -96,7 +96,7 @@ def run_automation():
                     send_telegram_with_blue_dot(f"eter当前无需续期", page)
                 else:
                     print(f"[LOG] 检测到需要续期，解除拦截并开始监测...")
-                    page.reload()         # 刷新以加载验证码脚本
+                   # page.reload()         # 刷新以加载验证码脚本
                     time.sleep(5)
                     force_remove_and_disable_ads(page)
                     
